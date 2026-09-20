@@ -32,23 +32,23 @@ class OutputTest(VaultCase):
         self.assertIn(f"Created your vault at {self.vault}", out)
         self.assertIn("Obsidian", out)
         lines = [line.strip() for line in out.splitlines()]
-        codex, claude = lines.index(f"cd {self.shell_vault()} && codex"), lines.index(f"cd {self.shell_vault()} && claude")
-        self.assertEqual(claude, codex + 1)
+        codex = lines.index(f'cd {self.shell_vault()} && codex "start"')
+        self.assertEqual(lines.index(f'cd {self.shell_vault()} && claude "start"'), codex + 1)
         self.assertIn("Paste one of these lines", out)
         self.assertIn("ingest ~/Downloads/", out)
         self.assertLess(len(out.splitlines()), 16)
 
     def test_start_command_names_the_installed_tool(self):
         out = run_cli("init", self.vault, env=self.fake_tools("claude")).stdout
-        self.assertIn("&& claude", out)
+        self.assertIn('&& claude "start"', out)
         self.assertNotIn("&& codex", out)
         self.assertIn("Paste this line", out)
 
     def test_init_without_an_ai_tool_says_where_to_get_one(self):
         out = run_cli("init", self.vault, env=self.fake_tools()).stdout
         self.assertIn("Neither codex nor claude is installed", out)
-        self.assertIn("&& codex", out)
-        self.assertIn("&& claude", out)
+        self.assertIn('&& codex "start"', out)
+        self.assertIn('&& claude "start"', out)
 
     def test_start_command_quotes_a_path_with_spaces(self):
         spaced = self.base / "My Vault"

@@ -283,6 +283,9 @@ class Sync:
 
 # Start lines are printed in this order.
 AI_TOOLS = ("codex", "claude")
+# Both CLIs take a first prompt as their positional argument, so the student never meets a blank
+# prompt. Keep this a word neither CLI uses as a subcommand.
+START_PROMPT = "start"
 
 
 def shell_path(path: Path) -> str:
@@ -295,11 +298,12 @@ def shell_path(path: Path) -> str:
     return shlex.quote(str(path))
 
 
-def start_commands(root: Path) -> list:
+def start_commands(root: Path, prompt: str = START_PROMPT) -> list:
     """A program cannot change the directory of the shell that ran it, so init prints lines to paste:
-    one per installed AI tool, or one per supported tool when none is installed yet."""
+    one per installed AI tool, or one per supported tool when none is installed yet. The quoted word
+    at the end is sent as the first message, which is what makes the tool open with the steps."""
     tools = [tool for tool in AI_TOOLS if shutil.which(tool)] or AI_TOOLS
-    return [f"cd {shell_path(root)} && {tool}" for tool in tools]
+    return [f'cd {shell_path(root)} && {tool} "{prompt}"' for tool in tools]
 
 
 def count(items, noun: str) -> str:
@@ -335,7 +339,8 @@ def render_init(result: dict) -> str:
         lines += ["     Neither codex nor claude is installed yet. Install one first:",
                   "       Codex CLI    https://developers.openai.com/codex/cli",
                   "       Claude Code  https://docs.anthropic.com/claude-code", ""]
-    lines += ["  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
+    lines += ["     The quoted word is your first message, so the tool opens with the steps on screen.",
+              "  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
     return with_notice(lines, result)
 
 
