@@ -55,6 +55,11 @@ class StartTest(VaultCase):
             self.assertEqual(run_cli("start", "--hook", "--no-such-flag", cwd=empty).returncode, 0)
             self.assertEqual(run_cli("start", "--hook", "--root", "/no/such/dir").returncode, 0)
 
+    def test_a_session_outside_a_vault_says_nothing(self):
+        with tempfile.TemporaryDirectory() as empty:
+            self.assertEqual(run_cli("start", "--hook", cwd=empty).stdout.strip(), "")
+            self.assertEqual(run_cli("start", "--compact", cwd=empty).stdout.strip(), "")
+
     def test_outside_a_vault_it_explains_init(self):
         with tempfile.TemporaryDirectory() as empty:
             proc = run_cli("start", cwd=empty)

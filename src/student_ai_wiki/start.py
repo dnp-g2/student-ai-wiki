@@ -102,7 +102,8 @@ def start_data(root, how: str, compact: bool, hook: bool) -> dict:
             "first_run": first_run, "brief": [], "help": [],
             "update": update.check(allow_network=not hook)}
     if root is None:
-        data["help"] = no_vault_lines()
+        # A session opener has nothing to say outside a vault, so it says nothing.
+        data["help"] = [] if compact else no_vault_lines()
         return data
     data["brief"] = brief_lines(root, include_empty=not compact)
     if first_run or not compact:
