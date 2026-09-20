@@ -25,20 +25,20 @@ class OutputTest(VaultCase):
         self.assertFalse(out.lstrip().startswith("{"))
         self.assertIn(f"Created your vault at {self.vault}", out)
         self.assertIn("Obsidian", out)
-        self.assertIn("&& claude", out)
-        self.assertIn("(or: codex)", out)
+        self.assertIn("&& codex", out)
+        self.assertIn("(or: claude)", out)
         self.assertIn("ingest ~/Downloads/", out)
         self.assertLess(len(out.splitlines()), 15)
 
     def test_start_command_names_the_installed_tool(self):
-        out = run_cli("init", self.vault, env=self.fake_tools("codex")).stdout
-        self.assertIn("&& codex", out)
+        out = run_cli("init", self.vault, env=self.fake_tools("claude")).stdout
+        self.assertIn("&& claude", out)
         self.assertNotIn("(or:", out)
 
     def test_init_without_an_ai_tool_says_where_to_get_one(self):
         out = run_cli("init", self.vault, env=self.fake_tools()).stdout
-        self.assertIn("Neither claude nor codex is installed", out)
-        self.assertIn("&& claude", out)
+        self.assertIn("Neither codex nor claude is installed", out)
+        self.assertIn("&& codex", out)
 
     def test_start_command_quotes_a_path_with_spaces(self):
         spaced = self.base / "My Vault"

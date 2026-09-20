@@ -67,7 +67,7 @@ student-wiki init ~/StudyVault
 
 ```bash
 cd ~/StudyVault
-claude        # or: codex
+codex         # or: claude
 ```
 
 Claude Code asks you to trust the project the first time, because the vault has a session hook that shows your deadlines. Both CLIs read `AGENTS.md` and find the skills by themselves. Claude Code also gets slash commands such as `/ingest` and `/due`; Codex uses the plain-text requests.

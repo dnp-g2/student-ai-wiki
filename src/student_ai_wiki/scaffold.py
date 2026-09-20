@@ -268,7 +268,8 @@ class Sync:
 
 # ---------- human-readable output ----------
 
-AI_TOOLS = ("claude", "codex")
+# The first name that is installed goes into the start line; codex is preferred.
+AI_TOOLS = ("codex", "claude")
 
 
 def shell_path(path: Path) -> str:
@@ -312,9 +313,9 @@ def render_init(result: dict) -> str:
               "  2. Start your AI tool inside the vault. Paste this line:", "",
               f"       {result['start_command']}" + (f"        (or: {others[0]})" if others else ""), ""]
     if not installed:
-        lines += ["     Neither claude nor codex is installed yet. Install one first:",
-                  "       Claude Code  https://docs.anthropic.com/claude-code",
-                  "       Codex CLI    https://developers.openai.com/codex/cli", ""]
+        lines += ["     Neither codex nor claude is installed yet. Install one first:",
+                  "       Codex CLI    https://developers.openai.com/codex/cli",
+                  "       Claude Code  https://docs.anthropic.com/claude-code", ""]
     lines += ["  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
     return "\n".join(lines)
 
