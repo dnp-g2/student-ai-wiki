@@ -400,5 +400,164 @@ class GradesTest(TrackerCase):
         self.assertIn("- COMP9417 76.7% on 30% graded · need 74.3% on the rest for 75", lines)
 
 
+class CalendarTest(TrackerCase):
+    FEED = "calendar/student-wiki.ics"
+
+    def events(self):
+        raw = (self.root / self.FEED).read_bytes()
+        self.assertTrue(raw.endswith(b"END:VCALENDAR\r\n"))
+        for line in raw.split(b"\r\n"):
+            self.assertLessEqual(len(line), 75, line)
+            self.assertNotIn(b"\n", line)
+        lines = raw.decode("utf-8").replace("\r\n ", "").split("\r\n")
+        events, current = {}, None
+        for line in lines:
+            if line == "BEGIN:VEVENT":
+                current = []
+            elif line == "END:VEVENT":
+                uid = next(l for l in current if l.startswith("UID:"))[4:]
+                events[uid] = current
+                current = None
+            elif current is not None:
+                current.append(line)
+        return events
+
+    def timezone(self, name="Australia/Sydney"):
+        (self.root / "wiki" / "tracker" / "_config.md").write_text(
+            f"---\ntimezone: {name}\n---\n", encoding="utf-8")
+
+    def test_all_day_and_timed_events_without_a_timezone(self):
+        self.add("Lab 3", kind="lab", due="2026-10-12", weight=5)
+        self.add("Assignment 2", due="2026-10-12", time="23:59", weight=20)
+        self.add("Midterm", kind="exam", due="2026-10-02", time="14:00", weight=30, duration_min=120)
+        out = self.run_json("ics")
+        self.assertEqual((out["status"], out["path"], out["tz_mode"]), ("written", self.FEED, "floating"))
+        events = self.events()
+        self.assertEqual(out["events"], len(events))
+        lab = events["COMP9417-lab-3@student-ai-wiki"]
+        self.assertIn("DTSTART;VALUE=DATE:20261012", lab)
+        self.assertIn("DTEND;VALUE=DATE:20261013", lab)
+        self.assertIn("SUMMARY:COMP9417 Lab 3 due (5%)", lab)
+        self.assertEqual([l for l in lab if l.startswith("TRIGGER")], ["TRIGGER:-PT15H"])
+        timed = events["COMP9417-assignment-2@student-ai-wiki"]
+        self.assertIn("DTSTART:20261012T232900", timed)
+        self.assertIn("DTEND:20261012T235900", timed)
+        self.assertEqual([l for l in timed if l.startswith("TRIGGER")],
+                         ["TRIGGER:-P7D", "TRIGGER:-P2D", "TRIGGER:-P1D", "TRIGGER:-PT3H"])
+        exam = events["COMP9417-midterm@student-ai-wiki"]
+        self.assertIn("DTSTART:20261002T140000", exam)
+        self.assertIn("DTEND:20261002T160000", exam)
+        start = events["COMP9417-assignment-2-start@student-ai-wiki"]
+        self.assertIn("SUMMARY:Start: COMP9417 Assignment 2 (due 2026-10-12)", start)
+        self.assertIn("TRIGGER:PT9H", start)
+        self.assertIn("COMP9417-assignment-2-ms-first-full-draft@student-ai-wiki", events)
+
+    def test_times_convert_to_utc_across_daylight_saving(self):
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo("Australia/Sydney")
+        except Exception:
+            self.skipTest("no timezone database on this machine")
+        self.timezone()
+        self.add("Before", due="2026-09-28", time="23:59", weight=5)
+        self.add("After", due="2026-10-12", time="23:59", weight=5)
+        self.assertEqual(self.run_json("ics")["tz_mode"], "utc")
+        events = self.events()
+        self.assertIn("DTEND:20260928T135900Z", events["COMP9417-before@student-ai-wiki"])
+        self.assertIn("DTEND:20261012T125900Z", events["COMP9417-after@student-ai-wiki"])
+
+    def test_unknown_timezone_falls_back_to_floating_times(self):
+        self.timezone("Mars/Olympus")
+        self.add("Task", due="2026-10-12", time="23:59", weight=5)
+        self.assertEqual(self.run_json("ics")["tz_mode"], "floating")
+
+    def test_folding_and_escaping(self):
+        title = "Essay; part 1, draft on “Überwachung” und Bürgerrechte in späten Demokratien"
+        self.add(title, due="2026-10-12", weight=5)
+        self.run_json("ics")
+        summary = next(l for e in self.events().values() for l in e if l.startswith("SUMMARY:"))
+        self.assertEqual(summary, "SUMMARY:COMP9417 " + title.replace(";", "\\;").replace(",", "\\,") + " due (5%)")
+
+    def test_uids_survive_retitling_and_milestone_reordering(self):
+        self.add("Assignment 2", due="2026-10-30", weight=20)
+        self.run_json("ics")
+        before = set(self.events())
+        self.run_json("update", "COMP9417-assignment-2", "--title", "Assignment 2 (trees)")
+        path = self.item_path("COMP9417-assignment-2")
+        lines = path.read_text(encoding="utf-8").split("\n")
+        first = next(i for i, l in enumerate(lines) if l.startswith("- [ ]"))
+        lines[first], lines[first + 1] = lines[first + 1], lines[first]
+        path.write_text("\n".join(lines), encoding="utf-8")
+        self.assertEqual(self.run_json("ics")["status"], "written")
+        self.assertEqual(set(self.events()), before)
+
+    def test_output_is_stable_and_sequence_follows_the_file(self):
+        self.add("Assignment 2", due="2026-10-30", weight=20)
+        self.run_json("ics")
+        self.assertEqual(self.run_json("ics")["status"], "unchanged")
+
+        def sequence():
+            event = self.events()["COMP9417-assignment-2@student-ai-wiki"]
+            return int(next(l for l in event if l.startswith("SEQUENCE:"))[9:])
+        old = sequence()
+        path = self.item_path("COMP9417-assignment-2")
+        stamp = path.stat().st_mtime + 600
+        os.utime(path, (stamp, stamp))
+        self.assertEqual(self.run_json("ics")["status"], "written")
+        self.assertEqual(sequence(), old + 10)
+
+    def test_alarm_bands_and_finished_items(self):
+        self.add("Mid", due="2026-10-12", weight=12, plan="none")
+        self.add("Quiz", kind="quiz", due="2026-10-13", weight=2)
+        self.add("Done", due="2026-10-14", weight=30, plan="none")
+        self.add("Gone", due="2026-10-15", weight=30, plan="none")
+        self.add("Undated", weight=30)
+        self.run_json("done", "COMP9417-done")
+        self.run_json("update", "COMP9417-gone", "--status", "dropped")
+        self.run_json("ics")
+        events = self.events()
+        triggers = {uid.split("@")[0]: [l for l in e if l.startswith("TRIGGER")] for uid, e in events.items()}
+        self.assertEqual(triggers["COMP9417-mid"], ["TRIGGER:-PT63H", "TRIGGER:-PT15H"])
+        self.assertEqual(len(triggers["COMP9417-quiz"]), 3)
+        self.assertEqual(triggers["COMP9417-done"], [])
+        self.assertIn("STATUS:CANCELLED", events["COMP9417-gone@student-ai-wiki"])
+        self.assertNotIn("COMP9417-done-start", triggers)
+        self.assertNotIn("COMP9417-undated", triggers)
+
+        (self.root / "wiki" / "tracker" / "_config.md").write_text("---\nalarms: false\n---\n", encoding="utf-8")
+        self.run_json("ics")
+        self.assertNotIn(b"VALARM", (self.root / self.FEED).read_bytes())
+
+    @unittest.skipIf(os.name == "nt", "the gh stub is a shell script")
+    def test_publish_goes_to_a_secret_gist(self):
+        bin_dir = self.root.parent / "bin"
+        bin_dir.mkdir()
+        log = self.root.parent / "gh.log"
+        stub = bin_dir / "gh"
+        stub.write_text(f'#!/bin/sh\necho "$@" >> "{log}"\ncat >> "{log}"\necho >> "{log}"\n'
+                        'echo \'{"id": "abc123", "owner": {"login": "student"}}\'\n', encoding="utf-8")
+        stub.chmod(0o755)
+        env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+        self.add("Assignment 2", due="2026-10-30", weight=20)
+
+        out = self.run_json("ics", "--publish-gist", env=env)
+        self.assertEqual(out["status"], "published")
+        self.assertEqual(out["subscribe_url"], "https://gist.githubusercontent.com/student/abc123/raw/student-wiki.ics")
+        self.assertEqual((self.root / "calendar" / ".gist-id").read_text(encoding="utf-8").strip(), "abc123")
+        self.run_json("ics", "--publish-gist", env=env)
+        calls = [l for l in log.read_text(encoding="utf-8").splitlines() if l.startswith("api ")]
+        self.assertEqual(calls, ["api --method POST gists --input -", "api --method PATCH gists/abc123 --input -"])
+        self.assertIn('"public": false', log.read_text(encoding="utf-8"))
+
+    def test_publish_without_gh_keeps_the_local_file(self):
+        empty = self.root.parent / "empty-bin"
+        empty.mkdir()
+        self.add("Assignment 2", due="2026-10-30", weight=20)
+        out = self.run_json("ics", "--publish-gist", env=dict(os.environ, PATH=str(empty)))
+        self.assertEqual(out["status"], "publish_failed")
+        self.assertIn("gh", out["publish_error"])
+        self.assertTrue((self.root / self.FEED).exists())
+
+
 if __name__ == "__main__":
     unittest.main()

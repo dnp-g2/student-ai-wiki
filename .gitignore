@@ -16,3 +16,6 @@ desktop.ini
 
 # Python
 __pycache__/
+
+# Tracker calendar feed: generated from wiki/tracker/, personal, holds the gist id
+calendar/

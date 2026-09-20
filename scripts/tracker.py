@@ -20,6 +20,7 @@ Usage:
   python3 scripts/tracker.py hot
   python3 scripts/tracker.py grades [--course C] [--target 75] [--what-if ID=85]
   python3 scripts/tracker.py target COURSE 75
+  python3 scripts/tracker.py ics [--out calendar/student-wiki.ics] [--publish-gist]
 
 Every command takes --root DIR (default: the repository containing this script) and
 --today YYYY-MM-DD. Each prints one JSON object with a status key; brief prints text unless
@@ -29,10 +30,12 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from file_source import slugify  # noqa: E402
@@ -63,6 +66,12 @@ EXAM_WINDOW_DAYS = 21
 MILESTONE_WINDOW_DAYS = 7
 HOT_MAX_LINES = 5
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+FEED_PATH = "calendar/student-wiki.ics"
+UID_DOMAIN = "student-ai-wiki"
+DEADLINE_BLOCK_MIN = 30
+# Days before the due date on which an alarm fires; all-day alarms fire at 09:00.
+ALARM_DAYS_HEAVY, ALARM_DAYS_MEDIUM, ALARM_DAYS_LIGHT = (7, 2, 1), (3, 1), (1,)
+ALARM_HOUR = 9
 DEFAULTS = {"timezone": None, "default_target": None, "term_start": None, "term_end": None,
             "alarms": True, "brief_days": 14}
 
@@ -834,6 +843,155 @@ def grade_line(grade: dict) -> str:
     return line + (f" · hurdle failed: {', '.join(failed)}" if failed else "")
 
 
+# --- calendar feed ---------------------------------------------------------------------------
+
+def ics_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def ics_fold(line: str) -> list:
+    """Split a content line into pieces of at most 75 octets without cutting a character."""
+    pieces, current, size = [], "", 0
+    for char in line:
+        width = len(char.encode("utf-8"))
+        if size + width > 75:
+            pieces.append(current)
+            current, size = " ", 1
+        current += char
+        size += width
+    return pieces + [current]
+
+
+def alarm_triggers(item: dict) -> list:
+    if item["type"] in EXAM_LIKE or (item["weight"] or 0) >= 20:
+        days = ALARM_DAYS_HEAVY
+    else:
+        days = ALARM_DAYS_MEDIUM if (item["weight"] or 0) >= 10 else ALARM_DAYS_LIGHT
+    if item["due_time"]:
+        return [f"-P{d}D" for d in days] + (["-PT3H"] if days == ALARM_DAYS_HEAVY else [])
+    return [f"-PT{d * 24 - ALARM_HOUR}H" for d in days]
+
+
+def build_feed(tracker: Tracker, items: list):
+    try:
+        from zoneinfo import ZoneInfo
+        zone = ZoneInfo(str(tracker.config["timezone"]))
+    except Exception:  # no timezone configured, or no zone database: times stay floating
+        zone = None
+    alarms_on = tracker.config["alarms"] is not False
+    vault = quote(tracker.root.name)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", f"PRODID:-//{UID_DOMAIN}//tracker//EN", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH", "X-WR-CALNAME:Student Wiki Deadlines"]
+    count = 0
+
+    def clock(moment: datetime) -> str:
+        if zone:
+            return moment.replace(tzinfo=zone).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        return moment.strftime("%Y%m%dT%H%M%S")
+
+    def event(uid, stamp, summary, description, when, triggers, cancelled=False):
+        nonlocal count
+        count += 1
+        modified = datetime.fromtimestamp(stamp, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        lines.extend(["BEGIN:VEVENT", f"UID:{uid}@{UID_DOMAIN}", f"DTSTAMP:{modified}", f"LAST-MODIFIED:{modified}",
+                      f"SEQUENCE:{int(stamp) // 60}", *when, f"SUMMARY:{ics_text(summary)}",
+                      f"DESCRIPTION:{ics_text(description)}", "TRANSP:TRANSPARENT"])
+        if cancelled:
+            lines.append("STATUS:CANCELLED")
+        for trigger in triggers if alarms_on else []:
+            lines.extend(["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{ics_text(summary)}",
+                          f"TRIGGER:{trigger}", "END:VALARM"])
+        lines.append("END:VEVENT")
+
+    def all_day(day: date) -> list:
+        return [f"DTSTART;VALUE=DATE:{day:%Y%m%d}", f"DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}"]
+
+    for item in items:
+        if item["due"] is None:
+            continue
+        stamp = (tracker.root / item["path"]).stat().st_mtime
+        active = item["status"] in OPEN
+        name = label(item)
+        summary = name + ("" if item["type"] == "todo" else " exam" if item["duration_min"] else " due")
+        summary += f" ({item['weight']}%)" if item["weight"] is not None else ""
+        details = [f"Status: {item['status']}"]
+        if item["concepts"]:
+            details.append("Concepts: " + ", ".join(item["concepts"]))
+        details.append(f"obsidian://open?vault={vault}&file={quote(item['path'])}")
+        if item["due_time"]:
+            moment = datetime.combine(item["due"], time.fromisoformat(item["due_time"]))
+            if item["duration_min"]:
+                begin, end = moment, moment + timedelta(minutes=item["duration_min"])
+            else:
+                begin, end = moment - timedelta(minutes=DEADLINE_BLOCK_MIN), moment
+            when = [f"DTSTART:{clock(begin)}", f"DTEND:{clock(end)}"]
+        else:
+            when = all_day(item["due"])
+        event(item["id"], stamp, summary, "\n".join(details), when, alarm_triggers(item) if active else [],
+              cancelled=item["status"] == "dropped")
+        if not active:
+            continue
+        if item["status"] == "todo" and item["start_by"] and item["start_by"] < item["due"]:
+            event(f"{item['id']}-start", stamp, f"Start: {name} (due {item['due']})", details[-1],
+                  all_day(item["start_by"]), [f"PT{ALARM_HOUR}H"])
+        for step in item["milestones"]:
+            if not step["done"] and step["due"]:
+                event(f"{item['id']}-ms-{slugify(step['text'])}", stamp, f"{name}: {step['text']}", details[-1],
+                      all_day(date.fromisoformat(step["due"])), [f"PT{ALARM_HOUR}H"])
+
+    lines.append("END:VCALENDAR")
+    folded = [piece for line in lines for piece in ics_fold(line)]
+    return "\r\n".join(folded) + "\r\n", count, "utc" if zone else "floating"
+
+
+def publish_gist(feed: Path) -> dict:
+    """Create a secret gist on the first run, update it afterwards. The gist id stays local."""
+    id_file = feed.parent / ".gist-id"
+    gist_id = id_file.read_text(encoding="utf-8").strip() if id_file.exists() else None
+    body = {"files": {feed.name: {"content": feed.read_text(encoding="utf-8")}}}
+    if gist_id:
+        command = ["gh", "api", "--method", "PATCH", f"gists/{gist_id}", "--input", "-"]
+    else:
+        body.update(description="Student wiki deadlines feed", public=False)
+        command = ["gh", "api", "--method", "POST", "gists", "--input", "-"]
+    try:
+        proc = subprocess.run(command, input=json.dumps(body), capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        return {"publish_error": "the gh CLI is not installed or not on PATH; see https://cli.github.com"}
+    if proc.returncode != 0:
+        hint = f" If the gist was deleted, remove {id_file.name} next to the feed and publish again." if gist_id else ""
+        return {"publish_error": f"gh failed: {proc.stderr.strip() or proc.stdout.strip()}. Run `gh auth login` "
+                                 f"with the gist scope if you are signed out.{hint}"}
+    try:
+        reply = json.loads(proc.stdout)
+        gist_id, owner = reply["id"], reply["owner"]["login"]
+    except (ValueError, KeyError, TypeError):
+        return {"publish_error": "gh returned a reply that could not be read"}
+    id_file.write_text(gist_id + "\n", encoding="utf-8")
+    return {"subscribe_url": f"https://gist.githubusercontent.com/{owner}/{gist_id}/raw/{feed.name}"}
+
+
+def cmd_ics(tracker: Tracker, args) -> None:
+    items, _ = tracker.load()
+    content, count, tz_mode = build_feed(tracker, items)
+    feed = Path(args.out).expanduser() if args.out else Path(FEED_PATH)
+    feed = feed if feed.is_absolute() else tracker.root / feed
+    data = content.encode("utf-8")
+    changed = not feed.exists() or feed.read_bytes() != data
+    if changed:
+        feed.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=feed.parent, prefix=".feed-", suffix=".tmp")
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp, feed)
+    shown = feed.relative_to(tracker.root).as_posix() if tracker.root in feed.parents else str(feed)
+    result = {"status": "written" if changed else "unchanged", "path": shown, "events": count, "tz_mode": tz_mode}
+    if args.publish_gist:
+        result.update(publish_gist(feed))
+        result["status"] = "publish_failed" if "publish_error" in result else "published"
+    emit(result)
+
+
 def label(item: dict) -> str:
     return " ".join(filter(None, [item["course"], item["title"]]))
 
@@ -1064,6 +1222,12 @@ def build_parser() -> argparse.ArgumentParser:
     target.add_argument("course")
     target.add_argument("grade")
     target.set_defaults(run=cmd_target)
+
+    ics = commands.add_parser("ics", parents=[common], help="write the calendar feed")
+    ics.add_argument("--out", help=f"feed path (default: {FEED_PATH} under the wiki root)")
+    ics.add_argument("--publish-gist", action="store_true",
+                     help="also upload the feed to a secret GitHub gist through the gh CLI")
+    ics.set_defaults(run=cmd_ics)
 
     hot = commands.add_parser("hot", parents=[common, writes], help="rewrite the Upcoming section of wiki/hot.md")
     hot.set_defaults(run=cmd_hot)
