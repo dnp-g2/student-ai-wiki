@@ -1,30 +1,30 @@
 ---
 tags: [home]
 ---
-# 🏠 知识库 — Student LLM Wiki
+# 🏠 Student LLM Wiki
 
-> Obsidian浏览，Claude编译，课件是燃料，wiki是产出。
+> Your slides go in, your wiki comes out. Read it in Obsidian and let the AI keep it up to date.
 
-## ⚡ 命令 Commands
+## ⚡ Commands
 
-| 命令 | 作用 |
+| Command | Purpose |
 |---|---|
-| `/ingest raw/COMPXXXX/L1.pdf` | 消化课件(自动去重) |
-| `/lint` | 健康检查+confidence衰减 |
-| `/review COMPXXXX` | 费曼复习 |
-| `/exam-prep COMPXXXX` | 弱项出题 |
+| `/ingest raw/COMPXXXX/L1.pdf` | Turn slides into notes (files you already added are skipped) |
+| `/lint` | Check the wiki for problems and flag concepts you have not reviewed lately |
+| `/review COMPXXXX` | Get quizzed on a course |
+| `/exam-prep COMPXXXX` | Get practice questions on your weak concepts |
 
-> 将你的课件 PDF 放入 `raw/{课程代码}/`，然后运行 `/ingest`，课程总览页会自动生成。
+> Put your course PDFs in `raw/{course-code}/`, then run `/ingest`. The course overview is created for you.
 
-## 📚 课程 Courses
+## 📚 Courses
 
 ```dataview
-TABLE file.mtime AS 最近更新
+TABLE file.mtime AS "Last Updated"
 FROM "wiki/courses"
 SORT file.mtime DESC
 ```
 
-## 🔴 薄弱概念
+## 🔴 Weak Concepts
 
 ```dataview
 TABLE courses, confidence, last_reviewed
@@ -32,7 +32,7 @@ FROM "wiki/concepts" WHERE confidence = "low"
 SORT last_reviewed ASC
 ```
 
-## 🟡 即将衰减 (>20天未复习)
+## 🟡 Due for Review (20+ Days Since You Last Looked)
 
 ```dataview
 TABLE courses, last_reviewed
@@ -41,13 +41,13 @@ WHERE confidence = "medium" AND (date(today) - date(last_reviewed)).days > 20
 SORT last_reviewed ASC
 ```
 
-## 🏝️ 孤岛
+## 🏝️ Pages Nothing Links To
 
 ```dataview
 LIST FROM "wiki/concepts" WHERE length(file.inlinks) = 0
 ```
 
-## 📈 最近更新
+## 📈 Recent Updates
 
 ```dataview
 TABLE updated FROM "wiki" WHERE updated SORT updated DESC LIMIT 8

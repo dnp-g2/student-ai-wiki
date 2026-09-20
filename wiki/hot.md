@@ -3,18 +3,17 @@ tags: [meta, hot-cache]
 ---
 # Hot Cache
 
-> 每次session开始首先读这个文件。≤500词。
 > Read FIRST at every session start. ≤500 words.
 
-## 状态 Status
-- Wiki初始化完成，等待第一次ingest
-- 无课件已处理 / 无概念页
+## Status
+- The wiki is set up and ready for its first slides
+- No slides or concept pages yet
 
-## 最近操作 Recent
-（无）
+## Recent
+- 2026-09-20: Switched all docs, instructions, and wiki templates to English.
 
-## 薄弱概念 Weak Concepts
-（无）
+## Weak Concepts
+(None)
 
-## 待办 Pending
-- 等待导入第一份课件到 raw/
+## Pending
+- Add the first course slides to raw/

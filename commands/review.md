@@ -1,5 +1,5 @@
 ---
-description: Feynman-technique review mode — quiz me and update confidence
+description: Feynman-technique review mode: quiz me and update confidence
 argument-hint: [course code or concept name, e.g. COMP9417]
 ---
 

@@ -2,15 +2,15 @@
 tags: [meta, overview]
 updated: 2026-06-01
 ---
-# 大图景 Overview
+# Overview
 
-*等待 ingest 后自动填充课程列表 / Course list auto-populated after ingest*
+*Your courses will show up here after your first ingest.*
 
-## 跨课程连接 Cross-Course Connections
-*等待积累 / Awaiting accumulation*
+## Cross-Course Connections
+*Links between courses will show up here as you add more slides.*
 
-## 矛盾与张力 Contradictions
-*等待发现 / Awaiting discovery*
+## Contradictions
+*None found yet.*
 
-## 知识缺口 Gaps
-*等待ingest / Awaiting ingest*
+## Gaps
+*Topics your notes are missing will be listed here.*

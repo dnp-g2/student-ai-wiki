@@ -1,29 +1,33 @@
 ---
 name: exam-prep
-description: Generate practice exam questions from weak concepts. This skill should be used when the user says "exam-prep", "备考", "make practice questions", "generate a quiz", or is preparing for an exam in a specific course. Scans concept pages, prioritizes low-confidence ones, and writes a practice question set.
+description: Generate practice exam questions from weak concepts. This skill should be used when the user says "exam-prep", "make practice questions", "generate a quiz", or is preparing for an exam in a specific course. Scans concept pages, prioritizes low-confidence ones, and writes a practice question set.
 ---
 
-# Exam Prep — 出题
+# Exam Prep: Practice Questions
 
-基于薄弱概念生成练习题。
+Generate practice questions from weak concepts.
 
-## 步骤
+## Steps
 
-1. 读 wiki/index.md 找到目标课程所有概念页
-2. 读 frontmatter，按 confidence 排序（low 优先）
-3. 为每个 low/medium 概念生成 1-2 道题
-4. 保存到 wiki/exam-prep/{course}.md
+1. Read wiki/index.md to find all concept pages for the target course
+2. Read frontmatter and sort by confidence (low first)
+3. Generate 1–2 questions for each low/medium-confidence concept
+4. Save to wiki/exam-prep/{course}.md
 
-## 题目类型（混合，不要全是记忆题）
+## Question Types (Mix Types; Do Not Use Only Recall Questions)
 
-- 概念应用题: 给场景，问该用哪个方法
-- 对比题: 两个相关概念的区别和适用场景
-- 推导题（ML课）: 要求推导或解释公式
-- 攻防题（安全课）: 给攻击，问防御，反之亦然
-- 陷阱题: 针对常见误解设计
+- Application: Give a scenario and ask which method to use
+- Comparison: Differences and use cases of two related concepts
+- Derivation (ML): Ask for a derivation or explanation of a formula
+- Attack and defense (security): Give an attack and ask for defenses, or vice versa
+- Trap questions: Target common misconceptions
 
-## 原则
+## Principles
 
-- 优先 confidence:low
-- 每题标注来自哪个概念页
-- 参考答案完整，鼓励用户先自己答
+- Prioritize confidence:low
+- Link each question to its concept page
+- Provide complete reference answers and encourage the user to answer first
+
+## Language
+
+Use English only for all questions, reference answers, headings, and feedback.

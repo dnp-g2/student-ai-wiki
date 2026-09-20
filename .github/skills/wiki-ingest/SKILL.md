@@ -1,40 +1,39 @@
 ---
 name: wiki-ingest
-description: Digest a course source file into the wiki. This skill should be used when the user says "ingest", "消化", "process this PDF/slide", or drops a course file into raw/ and wants it turned into wiki pages. Reads the source, deduplicates via manifest, creates source + concept pages, and finds cross-course connections.
+description: Digest a course source file into the wiki. This skill should be used when the user says "ingest", "process this PDF/slide", or drops a course file into raw/ and wants it turned into wiki pages. Reads the source, deduplicates via manifest, creates source + concept pages, and finds cross-course connections.
 ---
 
 # Wiki Ingest
 
-将 `raw/` 中的课件转化为 wiki 页面。
 Turn a source file in `raw/` into wiki pages.
 
-## 步骤 Steps
+## Steps
 
-1. **去重检查**: 计算文件 `md5sum {file} | cut -d' ' -f1`。查 `raw/.manifest.json`，hash相同则跳过，报告"已处理，用force重新消化"
-2. **读上下文**: 读 `wiki/hot.md`（不是完整SCHEMA）
-3. **定位已有页**: 读 `wiki/index.md` 找相关概念页
-4. **读源文件**，提炼3-5个关键要点
-5. **与用户讨论确认**（不跳过这步）
-6. **创建来源页** `wiki/sources/{name}.md`
-6.5. **创建/更新课程总览页** `wiki/courses/{COURSE}-overview.md`:
-   - 不存在则新建（用下方"课程总览页格式"）
-   - 已有则在"概念图谱"章节追加本次新概念的 `[[链接]]`
-7. **创建/更新概念页**（最多3-5页，不贪多）:
-   - 新概念 → 新建 `wiki/concepts/{Name}.md`，confidence默认 low，**设置 `created_at` 为今天日期**
-   - 已有概念 → 局部编辑，补充内容，更新 `last_reviewed` 日期（不改 `created_at`）
-8. **图表处理**: 若源含重要图表，文字描述其内容；若该概念涉及流程/架构/时序/分类等适合可视化的内容，按 wiki-diagram skill 判断标准用 Mermaid 配图
-9. **跨课程连接**: 检查新概念是否在其他课程出现过。若是：
-   - 在两个概念页都加 `[[链接]]`
-   - 在 `wiki/connections-log.md` 追加一条记录（用下方"连接日志格式"）
-10. **矛盾检测**: 若新内容与已有页面冲突：
-    - 在概念页用 `> [!contradiction]` callout 标注
-    - 在 `wiki/contradictions.md` 追加一条记录（用下方"矛盾记录格式"）
-11. **最后一次性更新**: `index.md` + `hot.md` + `log.md` + `overview.md` + `.manifest.json`（不要每步都更新）
-    - `overview.md` 更新内容：有新课程则加入课程列表，有新连接则更新"跨课程连接"摘要，有新矛盾则更新"矛盾与张力"摘要
-    - `wiki/glossary.md` 将本次新建概念追加到术语表（英文、中文、领域、`[[页面链接]]`）
-    - `log.md` 追加一条结构化日志记录（用下方"日志格式"）
+1. **Deduplicate**: Compute the file hash with `md5sum {file} | cut -d' ' -f1`. Check `raw/.manifest.json`; skip matching hashes and report "Already processed; use force to ingest again"
+2. **Read context**: Read `wiki/hot.md` (not the entire SCHEMA)
+3. **Locate existing pages**: Read `wiki/index.md` to find related concept pages
+4. **Read the source** and extract 3–5 key takeaways
+5. **Discuss with the user and confirm** (do not skip this step)
+6. **Create a source page** `wiki/sources/{name}.md`
+6.5. **Create/update the course overview** `wiki/courses/{COURSE}-overview.md`:
+   - If missing, create it using the Course Overview Format below
+   - Otherwise, append wiki links for new concepts to the Concept Map section
+7. **Create/update concept pages** (at most 3–5 pages; keep the scope focused):
+   - New concept → create `wiki/concepts/{Name}.md`, default confidence to low, and **set `created_at` to today's date**
+   - Existing concept → make local edits, add content, and update `last_reviewed` (do not change `created_at`)
+8. **Handle diagrams**: Describe important source diagrams in prose. For processes, architecture, sequences, classifications, or other visual concepts, apply the wiki-diagram criteria to add Mermaid diagrams
+9. **Cross-course connections**: Check whether new concepts appear in other courses. If so:
+   - Add reciprocal wiki links to both concept pages
+   - Append an entry to `wiki/connections-log.md` using the Connection Log Format below
+10. **Detect contradictions**: If new content conflicts with existing pages:
+    - Mark the concept page with a `> [!contradiction]` callout
+    - Append an entry to `wiki/contradictions.md` using the Contradiction Format below
+11. **Update once at the end**: `index.md` + `hot.md` + `log.md` + `overview.md` + `.manifest.json` (not after each step)
+    - In `overview.md`, add new courses to the course list, update Cross-Course Connections for new links, and update Contradictions for new conflicts
+    - Append new concepts to `wiki/glossary.md` using the columns Term, Domain, and Page (English term, domain, and wiki link)
+    - Append a structured entry to `log.md` using the Log Entry Format below
 
-## Manifest 格式
+## Manifest Format
 
 ```json
 {
@@ -53,74 +52,74 @@ Turn a source file in `raw/` into wiki pages.
 }
 ```
 
-## 批量 Batch ingest
+## Batch Ingest
 
-多个文件时：逐个处理，但 index/hot/log/manifest **只在全部完成后更新一次**。每10个文件后向用户汇报一次进度。
+Process multiple files individually, but update index/hot/log/manifest **only once after the entire batch**. Report progress after every 10 files.
 
-## 完成报告 Report
+## Completion Report
 
-"处理了 N 个来源。创建 X 页，更新 Y 页。发现的跨课程连接: ..."
+"Processed N sources. Created X pages and updated Y pages. Cross-course connections found: ..."
 
-## 课程总览页格式 Course Overview Format
+## Course Overview Format
 
-文件: `wiki/courses/{COURSE}-overview.md`
+File: `wiki/courses/{COURSE}-overview.md`
 ```markdown
 ---
 tags: [course-overview, {course-code}]
 course: {COURSE-CODE}
 updated: YYYY-MM-DD
 ---
-# {COURSE-CODE} — {课程名 Course Name}
+# {COURSE-CODE} · {Course Name}
 
-## 综述 Summary
-{一句话描述课程主题}
+## Summary
+{Describe the course topic in one sentence}
 
-## 概念图谱 Concept Map
+## Concept Map
 [[Concept-A]] · [[Concept-B]] · ...
 
-## 薄弱环节 Weak Areas
+## Weak Areas
 \`\`\`dataview
 TABLE confidence, last_reviewed FROM "wiki/concepts"
 WHERE contains(courses, "{COURSE-CODE}") AND confidence = "low"
 SORT last_reviewed ASC
 \`\`\`
 
-## 来源 Sources
+## Sources
 \`\`\`dataview
 LIST FROM "wiki/sources" WHERE contains(tags, "{course-code}") SORT file.ctime DESC
 \`\`\`
 ```
 
-## 连接日志格式 Connection Log Format
+## Connection Log Format
 
-追加到 `wiki/connections-log.md`：
+Append to `wiki/connections-log.md`:
 ```markdown
-## {YYYY-MM-DD} — {概念名}
-**课程A**: {COURSE-A} → [[Concept-Page-A]]
-**课程B**: {COURSE-B} → [[Concept-Page-B]]
-**连接本质**: 用一句话描述为什么这两个概念有关
-**深度**: 表面相似 / 共享数学基础 / 同一思想的不同应用
+## {YYYY-MM-DD} · {Concept Name}
+**Course A**: {COURSE-A} → [[Concept-Page-A]]
+**Course B**: {COURSE-B} → [[Concept-Page-B]]
+**Connection**: Explain in one sentence why these two concepts are related
+**Depth**: Surface similarity / Shared mathematical foundation / Different applications of the same idea
 ```
 
-## 日志格式 Log Entry Format
+## Log Entry Format
 
-追加到 `wiki/log.md`：
+Append to `wiki/log.md`:
 ```markdown
-## {YYYY-MM-DD} — ingest: {source-file}
-- 创建概念: [[Concept-A]], [[Concept-B]]
-- 更新概念: [[Concept-C]]
-- 跨课连接: N条（见 connections-log.md）
-- 矛盾: N条（见 contradictions.md）
+## {YYYY-MM-DD} · ingest: {source-file}
+- Created concepts: [[Concept-A]], [[Concept-B]]
+- Updated concepts: [[Concept-C]]
+- Cross-course connections: N (see connections-log.md)
+- Contradictions: N (see contradictions.md)
 ```
 
-## 矛盾记录格式 Contradiction Format
+## Contradiction Format
 
-追加到 `wiki/contradictions.md`：
+Append to `wiki/contradictions.md`:
 ```markdown
-## {YYYY-MM-DD} — {矛盾标题}
-**页面A**: [[page-a]] 说 "..."
-**页面B**: [[page-b]] 说 "..."
-**张力**: 描述矛盾的本质
-**状态**: 未解决
-**解决方案**: （待填）
+## {YYYY-MM-DD} · {Contradiction Title}
+**Page A**: [[page-a]] says "..."
+**Page B**: [[page-b]] says "..."
+**Tension**: Describe the nature of the contradiction
+**Status**: Unresolved
+**Resolution**: (To be filled in)
 ```

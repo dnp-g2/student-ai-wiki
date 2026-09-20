@@ -1,47 +1,46 @@
 ---
 name: wiki-lint
-description: Health-check the wiki and apply confidence decay. This skill should be used when the user says "lint", "检查wiki", "check the wiki", or wants to find orphan pages, broken links, contradictions, or stale concepts. Runs the 30-day confidence decay rule and reports issues for the user to fix.
+description: Health-check the wiki and apply confidence decay. This skill should be used when the user says "lint", "check the wiki", or wants to find orphan pages, broken links, contradictions, or stale concepts. Runs the 30-day confidence decay rule and reports issues for the user to fix.
 ---
 
 # Wiki Lint
 
-健康检查知识库。
 Health-check the knowledge base.
 
-## 检查项 Checks
+## Checks
 
-1. **孤立页 Orphans**: 没有任何 `[[链接]]` 指向的概念页
-2. **断链 Broken links**: `[[链接]]` 指向不存在的页面
-3. **矛盾 Contradictions**: 不同页面对同一概念的冲突描述。同时写入 `wiki/contradictions.md`（用 wiki-ingest 中的矛盾记录格式）并更新 `overview.md` 的矛盾摘要
-4. **陈旧内容 Stale**: confidence:low 且长期未更新的页面
-5. **Confidence 衰减 Decay**:
-   - 若概念页 `last_reviewed` 距今 >30天，且期间未被新页面引用 → confidence 降一级（high→medium→low）
-   - 列出所有降级的概念
-6. **跨课程缺失 Missing links**: 同一概念出现在多门课但没有互链
-7. **课程总览缺失 Missing overviews**: `index.md` 中每门课是否都有对应的 `wiki/courses/{course}-overview.md`；缺少则自动创建（用 wiki-ingest 中的课程总览页格式）
-8. **术语表缺失 Glossary gaps**: 检查 `wiki/glossary.md` 中缺少哪些已有概念页的术语条目，补充完整
+1. **Orphans**: Concept pages with no incoming wiki links
+2. **Broken links**: Wiki links pointing to nonexistent pages
+3. **Contradictions**: Conflicting descriptions of a concept across pages. Record them in `wiki/contradictions.md` using the wiki-ingest Contradiction Format and update the contradiction summary in `overview.md`
+4. **Stale content**: Pages with confidence:low that have not been updated for a long time
+5. **Confidence Decay**:
+   - If `last_reviewed` is more than 30 days ago and no new page has referenced the concept in that period → lower confidence by one level (high→medium→low)
+   - List all downgraded concepts
+6. **Missing cross-course links**: The same concept appears in multiple courses without reciprocal links
+7. **Missing overviews**: Check that each course in `index.md` has a `wiki/courses/{course}-overview.md`; automatically create missing overviews using the wiki-ingest Course Overview Format
+8. **Glossary gaps**: Add missing entries for existing concept pages to `wiki/glossary.md`, using the English-only Term, Domain, and Page columns
 
-## 流程 Process
+## Process
 
-1. 读 `wiki/index.md` 获取所有页面列表
-2. 按需读取页面检查（遵守token预算，分批检查）
-3. 报告发现，**询问用户要修复哪些**（不要自动全改）
-4. 修复后，批量维护（无需用户确认，直接更新）：
-   - `wiki/courses/{course}-overview.md`（缺少的课程总览页直接新建）
-   - `wiki/glossary.md`（补充缺失的术语条目）
-   - `wiki/contradictions.md`（追加新发现的矛盾）
-   - `wiki/connections-log.md`（补录缺失的跨课连接）
-   - `wiki/overview.md`（同步更新矛盾摘要、连接摘要、课程列表）
-   - `wiki/log.md`（追加格式: `## {YYYY-MM-DD} — lint: 孤立N 断链N 衰减N 矛盾N 补连N 补总览N 补术语N`）
+1. Read `wiki/index.md` for the page list
+2. Read pages as needed for checks (respect token budgets and work in batches)
+3. Report findings and **ask the user which issues to fix** (do not automatically fix everything)
+4. After repairs, perform batch maintenance (update directly without further confirmation):
+   - `wiki/courses/{course}-overview.md` (create missing course overviews)
+   - `wiki/glossary.md` (add missing glossary entries)
+   - `wiki/contradictions.md` (append newly discovered contradictions)
+   - `wiki/connections-log.md` (record missing cross-course connections)
+   - `wiki/overview.md` (synchronize contradiction summaries, connection summaries, and the course list)
+   - `wiki/log.md` (append using: `## {YYYY-MM-DD} · lint: orphans N, broken links N, decayed N, contradictions N, links added N, overviews added N, terms added N`)
 
-## 报告格式 Report
+## Report Format
 
 ```
-🏝️ 孤立页 (N): ...
-🔗 断链 (N): ...
-⚡ 矛盾 (N): ...
-📉 衰减降级 (N): [概念] high→medium (45天未复习)
-🌉 缺失跨课连接 (N): [概念A] 和 [概念B] 应互链
-📂 缺失课程总览 (N): wiki/courses/{course}-overview.md
-📖 术语表缺失条目 (N): [概念名]
+🏝️ Orphans (N): ...
+🔗 Broken links (N): ...
+⚡ Contradictions (N): ...
+📉 Confidence decay (N): [Concept] high→medium (not reviewed for 45 days)
+🌉 Missing cross-course links (N): [Concept A] and [Concept B] should link to each other
+📂 Missing course overviews (N): wiki/courses/{course}-overview.md
+📖 Missing glossary entries (N): [Concept Name]
 ```

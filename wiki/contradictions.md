@@ -3,27 +3,26 @@ tags: [meta, contradictions]
 updated: 2026-05-25
 ---
 
-# 矛盾与张力记录 Contradictions & Tensions
+# Contradictions & Tensions
 
-> 矛盾不是错误——它们是最有学习价值的地方。
-> Contradictions aren't errors — they're where the deepest learning happens.
+> Contradictions are where the deepest learning happens.
 
-不同课程、不同资料对同一概念的不同描述，记录在这里。每条矛盾包含：
-- 冲突的两个页面
-- 矛盾的本质
-- 状态（未解决/已解决/需要更多资料）
+When two courses or sources explain the same concept differently, it gets noted here. Each entry lists:
+- The two pages that disagree
+- What they disagree about
+- Status (unresolved, resolved, or needs more information)
 
 ---
 
-*等待 ingest 过程中发现矛盾 / Awaiting contradictions discovered during ingest*
+*None found yet. They are added as you ingest slides.*
 
 <!--
-格式模板 Format template:
+Format template:
 
-## {日期} — {矛盾标题}
-**页面A**: [[page-a]] 说 "..."
-**页面B**: [[page-b]] 说 "..."
-**张力 Tension**: 描述矛盾的本质
-**状态 Status**: 未解决 / 已解决 / 需要更多资料
-**解决方案 Resolution**: （如果已解决）
+## {Date} · {Contradiction Title}
+**Page A**: [[page-a]] says "..."
+**Page B**: [[page-b]] says "..."
+**Tension**: What the two pages disagree about
+**Status**: Unresolved / Resolved / Needs more information
+**Resolution**: (If resolved)
 -->

@@ -7,7 +7,7 @@
     {
       "name": "student-llm-wiki",
       "source": "./",
-      "description": "Student knowledge wiki — Karpathy LLM Wiki pattern with Feynman review, exam prep, confidence decay, and cross-course connections."
+      "description": "Student knowledge wiki built on the Karpathy LLM Wiki pattern, with Feynman review, exam prep, confidence decay, and cross-course connections."
     }
   ]
 }

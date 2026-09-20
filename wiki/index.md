@@ -2,15 +2,15 @@
 tags: [meta, index]
 updated: 2026-06-01
 ---
-# 索引 Wiki Index
+# Wiki Index
 
-## 课程 Courses
-| 课程 | 页面 | 概念数 | 来源数 |
+## Courses
+| Course | Page | Concepts | Sources |
 |---|---|---|---|
-| *等待 ingest / Awaiting ingest* | | | |
+| *No courses yet. Ingest your first slides to get started.* | | | |
 
-## 概念页 Concepts
-*空 / Empty*
+## Concepts
+*Nothing here yet.*
 
-## 来源页 Sources
-*空 / Empty*
+## Sources
+*Nothing here yet.*

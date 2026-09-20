@@ -1,24 +1,24 @@
 ---
 tags: [meta, glossary]
-updated: 2026-05-25
+updated: 2026-09-20
 ---
 
-# 术语表 Glossary
+# Glossary
 
-> 所有术语在wiki中的标准写法。
+> The terms this wiki uses, and how they are named.
 
-## 命名规则 Naming Conventions
+## Naming Rules
 
-- Wiki链接用英文，连字符分隔：`[[Gradient-Descent]]`
-- 中文名在页面标题中出现：`# 梯度下降 Gradient Descent`
-- 缩写首次出现时展开：`PTK（Pairwise Transient Key）`
+- Use English names with hyphens for wiki links: `[[Gradient-Descent]]`
+- Use English page titles: `# Gradient Descent`
+- Spell out abbreviations the first time they appear: `PTK (Pairwise Transient Key)`
 
-## 术语 Terms
+## Terms
 
-| 英文 English | 中文 Chinese | 领域 Domain | 页面 Page |
-|---|---|---|---|
-| *等待 ingest 填充* | | | |
+| Term | Domain | Page |
+|---|---|---|
+| *No terms yet. They are added as you ingest slides.* | | |
 
 ---
 
-*最后更新 Last updated: 2026-05-25*
+*Last updated: 2026-09-20*

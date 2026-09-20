@@ -1,36 +1,32 @@
-# SCHEMA — 设计参考 Design Reference
+# SCHEMA: Design Reference
 
-> ⚠️ 本文件现在只是**人类可读的设计参考**。
-> 真正的操作规则已拆分到 `skills/` 目录下的各个 SKILL.md。
 > This file is now a human-readable reference only.
 > The actual operating rules live in the `skills/` directory.
 
-## 系统如何工作 How It Works
+## How It Works
 
-这是一个 Claude Code / Cowork 插件，实现 Karpathy LLM Wiki 模式的学生版。
+This Claude Code / Cowork plugin implements a student version of the Karpathy LLM Wiki pattern.
 
-| 层 Layer | 内容 | 位置 |
+| Layer | Contents | Location |
 |---|---|---|
-| Layer 1 数据源 | 只读课件 | `raw/{course}/` |
-| Layer 2 知识 | AI维护的wiki | `wiki/` |
-| Layer 3 规则 | 模块化skill | `skills/*/SKILL.md` |
+| Layer 1: Sources | Read-only slides | `raw/{course}/` |
+| Layer 2: Knowledge | AI-maintained wiki | `wiki/` |
+| Layer 3: Rules | Modular skills | `skills/*/SKILL.md` |
 
-## Skills（按需加载，省token）
+## Skills (Load on Demand to Save Tokens)
 
-| Skill | 触发 | 作用 |
+| Skill | Trigger | Purpose |
 |---|---|---|
-| `wiki-core` | 总是首先加载 | 架构 + token预算规则 + 页面格式 |
-| `wiki-ingest` | "ingest" / 拖入课件 | 消化课件，去重，建概念页 |
-| `wiki-lint` | "lint" / "检查" | 健康检查 + confidence衰减 |
-| `wiki-review` | "review" / "复习" | 费曼提问 + 更新confidence |
-| `exam-prep` | "exam-prep" / "备考" | 弱项出题 |
+| `wiki-core` | Always load first | Architecture + token budget rules + page formats |
+| `wiki-ingest` | "ingest" / drop in slides | Ingest slides, deduplicate, create concept pages |
+| `wiki-lint` | "lint" / "check" | Health check + confidence decay |
+| `wiki-review` | "review" | Feynman questions + update confidence |
+| `exam-prep` | "exam-prep" | Generate questions for weak concepts |
 
-## Commands（斜杠命令）
+## Commands (Slash Commands)
 
-`/ingest [文件]` · `/lint` · `/review [课程]` · `/exam-prep [课程]`
+`/ingest [file]` · `/lint` · `/review [course]` · `/exam-prep [course]`
 
-## 为什么拆成skill？ Why split into skills?
+## Why Split into Skills?
 
-单体 SCHEMA 每次都被完整读入上下文（3000+ tokens）。拆成skill后，做ingest就只加载ingest的规则，做lint就只加载lint的规则。配合 `wiki/hot.md` 缓存，大幅降低token消耗。
-
-A monolithic SCHEMA was loaded fully into context every time (~3000 tokens). Split into skills, only the relevant skill loads per operation. Combined with the `wiki/hot.md` cache, this cuts token usage significantly.
+A monolithic SCHEMA was loaded in full on every operation (3000+ tokens). Splitting it into skills loads only the relevant operation rules, such as ingest or lint. Combined with the `wiki/hot.md` cache, this significantly reduces token usage.

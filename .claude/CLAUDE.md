@@ -1,49 +1,51 @@
-# Student LLM Wiki — Project Instructions
+# Student LLM Wiki: Project Instructions
 
-你是学生知识库维护者。读 `raw/`，写 `wiki/`。永不改 `raw/`。
 You maintain this student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
 
-## 操作规则 Operation Rules
+## Operation Rules
 
-执行以下操作前，先读取对应的规则文件（按需加载，节省token）：
 Read the corresponding rules file before each operation (load on demand to save tokens):
 
-| 操作 | 规则文件 |
+| Operation | Rules file |
 |---|---|
-| 任何操作开始前 | `skills/wiki-core/SKILL.md` |
-| ingest / 消化课件 | `skills/wiki-ingest/SKILL.md` |
-| lint / 检查wiki | `skills/wiki-lint/SKILL.md` |
-| review / 复习 | `skills/wiki-review/SKILL.md` |
-| exam-prep / 出题 | `skills/exam-prep/SKILL.md` |
-| diagram / 画图配图 | `skills/wiki-diagram/SKILL.md` |
+| Before any operation | `skills/wiki-core/SKILL.md` |
+| ingest | `skills/wiki-ingest/SKILL.md` |
+| lint | `skills/wiki-lint/SKILL.md` |
+| review | `skills/wiki-review/SKILL.md` |
+| exam-prep | `skills/exam-prep/SKILL.md` |
+| diagram | `skills/wiki-diagram/SKILL.md` |
 
-## Token预算规则（最高优先级）
+## Token Budget Rules (Highest Priority)
 
-1. **每次session首先只读 `wiki/hot.md`**（≤500词）
-2. 需要更多上下文才读 `wiki/index.md`
-3. 每次ingest最多读3-5个已有页面
-4. 局部编辑，不全文重写
-5. 批量操作时 index/hot/log 最后更新一次
-6. ingest前查 `raw/.manifest.json`，hash相同则跳过
+1. **Read only `wiki/hot.md` first at each session start** (≤500 words)
+2. Read `wiki/index.md` only if more context is needed
+3. Read at most 3–5 existing pages per ingest
+4. Make local edits; do not rewrite entire pages
+5. For batch operations, update index/hot/log once at the end
+6. Before ingest, check `raw/.manifest.json`; skip files with matching hashes
 
-## 架构 Architecture
+## Architecture
 
 ```
-raw/{course}/    ← 只读课件 / Read-only slides
+raw/{course}/    ← Read-only slides
 wiki/
-  hot.md         ← 上下文缓存，每次首读 / Context cache, read first
-  index.md       ← 总目录 / Master catalog
-  concepts/      ← 概念页 / Concept pages
-  sources/       ← 来源页 / Source pages
-  courses/       ← 课程总览 / Course overviews
-  exam-prep/     ← 练习题 / Practice questions
-raw/.manifest.json  ← 去重追踪 / Dedup tracker
+  hot.md         ← Context cache, read first
+  index.md       ← Master catalog
+  concepts/      ← Concept pages
+  sources/       ← Source pages
+  courses/       ← Course overviews
+  exam-prep/     ← Practice questions
+raw/.manifest.json  ← Dedup tracker
 ```
 
-## 命令 Commands
+## Commands
 
-- `ingest raw/COMP6713/L3.pdf` — 消化课件
-- `lint` — 健康检查 + confidence衰减
-- `review COMP9417` — 费曼复习
-- `exam-prep COMP4337` — 弱项出题
-- `diagram Attention-Mechanism` — 为概念页配 Mermaid 图
+- `ingest raw/COMP6713/L3.pdf`: Ingest course slides
+- `lint`: Health check + confidence decay
+- `review COMP9417`: Feynman review
+- `exam-prep COMP4337`: Generate questions for weak concepts
+- `diagram Attention-Mechanism`: Add a Mermaid diagram to a concept page
+
+## Language
+
+Use English only for all generated content, headings, templates, questions, feedback, and diagram labels. Use English names with hyphens for wiki links.
