@@ -18,6 +18,8 @@ Usage:
   python3 scripts/tracker.py focus COURSE
   python3 scripts/tracker.py brief [--days 14] [--max 5] [--course C] [--json] [--hook]
   python3 scripts/tracker.py hot
+  python3 scripts/tracker.py grades [--course C] [--target 75] [--what-if ID=85]
+  python3 scripts/tracker.py target COURSE 75
 
 Every command takes --root DIR (default: the repository containing this script) and
 --today YYYY-MM-DD. Each prints one JSON object with a status key; brief prints text unless
@@ -710,6 +712,128 @@ def cmd_focus(tracker: Tracker, args) -> None:
     emit({"status": "ok", "course": course, "item": view(upcoming[0], tracker), "concepts": concepts})
 
 
+def overview_path(tracker: Tracker, course: str) -> Path:
+    return tracker.root / "wiki" / "courses" / f"{course}-overview.md"
+
+
+def target_for(tracker: Tracker, course: str, override=None):
+    """Target grade: the flag, else the course overview, else default_target in _config.md."""
+    candidates = [override]
+    path = overview_path(tracker, course)
+    try:
+        candidates.append(Page(path).data.get("target_grade") if path.exists() else None)
+    except (OSError, UnicodeDecodeError):
+        pass
+    candidates.append(tracker.config["default_target"])
+    for value in candidates:
+        try:
+            if value is not None:
+                return read_number(value)
+        except ValueError:
+            continue
+    return None
+
+
+def course_grades(tracker: Tracker, course: str, items: list, target, what_if: dict) -> dict:
+    counted = [i for i in items if i["course"] == course and i["type"] != "todo" and i["status"] != "dropped"]
+    for item in counted:
+        if item["id"] in what_if:
+            item.update(mark=what_if[item["id"]], out_of=100)
+    weighted = [i for i in counted if i["weight"] is not None]
+    graded = [i for i in weighted if i["mark"] is not None and i["out_of"]]
+    graded_weight = sum(i["weight"] for i in graded)
+    earned = sum(i["weight"] * i["mark"] / i["out_of"] for i in graded)
+    tracked = sum(i["weight"] for i in weighted)
+    remaining = 100 - graded_weight
+
+    hurdles = []
+    for item in counted:
+        if item["hurdle"] is not None:
+            has_mark = item["mark"] is not None and item["out_of"]
+            state = "pending" if not has_mark else "met" if item["mark"] / item["out_of"] * 100 >= item["hurdle"] else "failed"
+            hurdles.append({"id": item["id"], "hurdle": item["hurdle"], "state": state})
+
+    result = {"course": course, "target": target, "graded_weight": graded_weight, "earned": earned,
+              "average": earned / graded_weight * 100 if graded_weight else None,
+              "tracked_weight": tracked, "untracked_weight": max(0, 100 - tracked), "remaining_weight": remaining,
+              "remaining_items": [{"id": i["id"], "weight": i["weight"], "due": i["due"]}
+                                  for i in weighted if i not in graded],
+              "unweighted": [i["id"] for i in counted if i["weight"] is None],
+              "hurdles": hurdles, "at_risk": any(h["state"] == "failed" for h in hurdles)}
+    if tracked > 100:
+        result["outcome"] = "weights_over_100"
+    elif target is None:
+        result["outcome"] = "no_target"
+    elif remaining <= 0:
+        result["outcome"] = "secured" if earned >= target else "missed"
+    else:
+        required = (target - earned) / remaining * 100
+        result["outcome"] = "secured" if required <= 0 else "unreachable" if required > 100 else "on_track"
+        if result["outcome"] == "on_track":
+            result["required_average"] = required
+        if result["outcome"] == "unreachable":
+            result["max_possible"] = earned + remaining
+    return {k: tidy(round(v, 1)) if isinstance(v, float) else v for k, v in result.items() if v is not None}
+
+
+def all_grades(tracker: Tracker, items: list, only=None, target=None, what_if=None) -> list:
+    courses = sorted({i["course"] for i in items if i["course"] and i["type"] != "todo"})
+    return [course_grades(tracker, c, items, target_for(tracker, c, target), what_if or {})
+            for c in courses if only in (None, c)]
+
+
+def cmd_grades(tracker: Tracker, args) -> None:
+    items, _ = tracker.load()
+    what_if = {}
+    for pair in args.what_if or []:
+        item_id, _, value = pair.partition("=")
+        if item_id not in {i["id"] for i in items}:
+            fail(f"--what-if names an unknown item: {item_id}")
+        try:
+            what_if[item_id] = read_number(value)
+        except ValueError:
+            fail(f"--what-if takes ID=PERCENT, got '{pair}'")
+    try:
+        target = read_number(args.target) if args.target is not None else None
+    except ValueError:
+        fail(f"--target '{args.target}' is not a number")
+    only = normalise_course(args.course) if args.course else None
+    emit({"status": "ok", "courses": all_grades(tracker, items, only, target, what_if)})
+
+
+def cmd_target(tracker: Tracker, args) -> None:
+    course = normalise_course(args.course)
+    try:
+        target = read_number(args.grade)
+    except ValueError:
+        fail(f"'{args.grade}' is not a number")
+    path = overview_path(tracker, course)
+    if not path.exists():
+        emit({"status": "no_overview", "course": course, "path": path.relative_to(tracker.root).as_posix()})
+        return
+    page = Page(path)
+    page.patch({"target_grade": target})
+    if not args.dry_run:
+        page.save()
+    emit({"status": "proposed" if args.dry_run else "updated", "course": course, "target_grade": target,
+          "path": path.relative_to(tracker.root).as_posix()})
+
+
+def grade_line(grade: dict) -> str:
+    line = f"{grade['course']} {grade['average']:.1f}% on {grade['graded_weight']}% graded"
+    target = grade.get("target")
+    if grade["outcome"] == "on_track":
+        line += f" · need {grade['required_average']:.1f}% on the rest for {target}"
+    elif grade["outcome"] == "secured":
+        line += f" · target {target} secured"
+    elif grade["outcome"] in ("unreachable", "missed"):
+        line += f" · target {target} is out of reach" + (f", best case {grade['max_possible']}%" if "max_possible" in grade else "")
+    elif grade["outcome"] == "weights_over_100":
+        line += " · weights add up to more than 100, fix them first"
+    failed = [h["id"] for h in grade["hurdles"] if h["state"] == "failed"]
+    return line + (f" · hurdle failed: {', '.join(failed)}" if failed else "")
+
+
 def label(item: dict) -> str:
     return " ".join(filter(None, [item["course"], item["title"]]))
 
@@ -757,6 +881,7 @@ def brief_data(tracker: Tracker, days: int, course=None) -> dict:
             "overdue": [view(i, tracker) for i in overdue], "due_soon": [view(i, tracker) for i in due_soon],
             "start_now": [view(i, tracker) for i in start_now], "milestones": milestones,
             "exam_readiness": readiness, "next": view(ranked[0], tracker) if ranked else None,
+            "grades": [g for g in all_grades(tracker, items, course) if g["graded_weight"]],
             "needs_check": [{"id": i["id"], "label": label(i), "fields": i["needs_check"]}
                             for i in active if i["needs_check"]]}
 
@@ -805,6 +930,7 @@ def render_brief(tracker: Tracker, data: dict, cap: int) -> str:
         lines.append(f"✅ Nothing due in the next {data['days']} days.")
     if data["next"]:
         lines.append(f"🎯 Next: {label(raw(data['next']))} (score {data['next']['score']})")
+    section("📊 Grades", [grade_line(g) for g in data["grades"]])
     section("⚠️ Needs checking", [f"{n['label']} · {', '.join(n['fields'])}" for n in data["needs_check"]])
     return "\n".join(lines)
 
@@ -927,6 +1053,17 @@ def build_parser() -> argparse.ArgumentParser:
     brief.add_argument("--json", action="store_true")
     brief.add_argument("--hook", action="store_true", help="session hook mode: silent when empty, always exits 0")
     brief.set_defaults(run=cmd_brief)
+
+    grades = commands.add_parser("grades", parents=[common], help="standing per course and what is needed")
+    grades.add_argument("--course")
+    grades.add_argument("--target", help="target grade for this run (default: course overview, then _config.md)")
+    grades.add_argument("--what-if", action="append", metavar="ID=PERCENT", help="pretend a mark; repeatable")
+    grades.set_defaults(run=cmd_grades)
+
+    target = commands.add_parser("target", parents=[common, writes], help="store a course's target grade")
+    target.add_argument("course")
+    target.add_argument("grade")
+    target.set_defaults(run=cmd_target)
 
     hot = commands.add_parser("hot", parents=[common, writes], help="rewrite the Upcoming section of wiki/hot.md")
     hot.set_defaults(run=cmd_hot)

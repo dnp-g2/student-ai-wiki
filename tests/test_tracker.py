@@ -326,5 +326,79 @@ class BriefTest(TrackerCase):
         self.assertEqual(self.run_json("hot")["status"], "unchanged")
 
 
+class GradesTest(TrackerCase):
+    def course(self):
+        self.add("Assignment 1", due="2026-09-10", weight=20)
+        self.add("Quiz 1", kind="quiz", due="2026-09-12", weight=10)
+        self.add("Final", kind="exam", due="2026-11-20", weight=50, hurdle=40)
+        self.add("Bonus task", due="2026-10-01")
+        self.add("Optional lab", kind="lab", due="2026-10-05", weight=30)
+        self.run_json("update", "COMP9417-optional-lab", "--status", "dropped")
+        self.add("Read chapter 3", kind="todo", due="2026-09-25")
+        self.run_json("mark", "COMP9417-assignment-1", "17", "--out-of", "20")
+        self.run_json("mark", "COMP9417-quiz-1", "6", "--out-of", "10")
+
+    def grades(self, *args):
+        return self.run_json("grades", "--course", "COMP9417", *args)["courses"][0]
+
+    def test_standing_and_required_average(self):
+        self.course()
+        g = self.grades("--target", "75")
+        self.assertEqual((g["graded_weight"], g["earned"], g["average"]), (30, 23, 76.7))
+        self.assertEqual((g["tracked_weight"], g["untracked_weight"], g["remaining_weight"]), (80, 20, 70))
+        self.assertEqual((g["outcome"], g["required_average"]), ("on_track", 74.3))
+        self.assertEqual(g["unweighted"], ["COMP9417-bonus-task"])
+        self.assertEqual([r["id"] for r in g["remaining_items"]], ["COMP9417-final"])
+        self.assertEqual(g["hurdles"], [{"id": "COMP9417-final", "hurdle": 40, "state": "pending"}])
+        self.assertFalse(g["at_risk"])
+
+    def test_secured_unreachable_and_no_target(self):
+        self.course()
+        self.assertEqual(self.grades("--target", "20")["outcome"], "secured")
+        high = self.grades("--target", "95")
+        self.assertEqual((high["outcome"], high["max_possible"]), ("unreachable", 93))
+        none = self.grades()
+        self.assertEqual(none["outcome"], "no_target")
+        self.assertNotIn("required_average", none)
+
+    def test_what_if_and_failed_hurdle(self):
+        self.course()
+        good = self.grades("--target", "75", "--what-if", "COMP9417-final=90")
+        self.assertEqual((good["earned"], good["remaining_weight"], good["required_average"]), (68, 20, 35))
+        bad = self.grades("--target", "50", "--what-if", "COMP9417-final=30")
+        self.assertEqual(bad["hurdles"][0]["state"], "failed")
+        self.assertTrue(bad["at_risk"])
+        self.assertIn("mark:\n", self.item_path("COMP9417-final").read_text(encoding="utf-8"))
+        self.assertNotEqual(self.run_raw("grades", "--what-if", "COMP9417-missing=50").returncode, 0)
+
+    def test_weights_over_100(self):
+        self.course()
+        self.add("Project", due="2026-10-30", weight=60)
+        g = self.grades("--target", "75")
+        self.assertEqual(g["outcome"], "weights_over_100")
+        self.assertNotIn("required_average", g)
+
+    def test_target_is_stored_on_the_course_overview(self):
+        self.course()
+        self.assertEqual(self.run_json("target", "comp9417", "80")["status"], "no_overview")
+        overview = self.root / "wiki" / "courses" / "COMP9417-overview.md"
+        overview.write_text("---\ntags: [course-overview, comp9417]\ncourse: COMP9417\nupdated: 2026-09-20\n---\n"
+                            "# COMP9417 · Machine Learning\n", encoding="utf-8")
+        self.assertEqual(self.run_json("target", "comp9417", "80")["status"], "updated")
+        self.assertIn("target_grade: 80\n", overview.read_text(encoding="utf-8"))
+        self.assertIn("# COMP9417 · Machine Learning\n", overview.read_text(encoding="utf-8"))
+        self.assertEqual(self.grades()["target"], 80)
+        self.assertEqual(self.grades("--target", "65")["target"], 65)
+
+    def test_default_target_and_brief_line(self):
+        self.course()
+        (self.root / "wiki" / "tracker" / "_config.md").write_text(
+            "---\ndefault_target: 75\n---\n", encoding="utf-8")
+        self.assertEqual(self.grades()["target"], 75)
+        lines = self.run_raw("brief").stdout.splitlines()
+        self.assertIn("📊 Grades (1):", lines)
+        self.assertIn("- COMP9417 76.7% on 30% graded · need 74.3% on the rest for 75", lines)
+
+
 if __name__ == "__main__":
     unittest.main()
