@@ -10,7 +10,7 @@ source .venv/bin/activate
 student-wiki --version
 ```
 
-The package has no runtime dependencies beyond the standard library (plus `tzdata` on Windows) and supports Python 3.9 and newer. Keep it that way: avoid syntax and library features newer than 3.9.
+The package has no runtime dependencies beyond the standard library (plus `tzdata` on Windows) and supports Python 3.9 and newer. Keep it that way: avoid syntax and library features newer than 3.9. On macOS, support covers the two newest releases (currently 26 and 27); CI runs on `macos-26` and gains `macos-27` when GitHub ships that runner.
 
 ## Tests
 

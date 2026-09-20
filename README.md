@@ -20,6 +20,7 @@ Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/4
 
 | You need | Notes |
 |---|---|
+| **macOS 26 or 27, Windows, or Linux** | On macOS, the two newest releases are supported and tested |
 | **Python 3.9 or newer** | Already on macOS and most Linux systems. On Windows, install it from [python.org](https://www.python.org/downloads/) |
 | **pipx** or **uv** | Installs command-line tools in their own environment: [pipx](https://pipx.pypa.io/stable/installation/) or [uv](https://docs.astral.sh/uv/getting-started/installation/) |
 | **Obsidian** | Free, from [obsidian.md/download](https://obsidian.md/download). The dashboards need the **Dataview** community plugin |
