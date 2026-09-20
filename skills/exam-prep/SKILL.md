@@ -10,7 +10,7 @@ Generate practice questions from weak concepts.
 ## Steps
 
 1. Read `wiki/index.md` to find all concept pages for the target course
-2. Read their frontmatter and sort by `confidence` (low first)
+2. Read their frontmatter and sort by `confidence` (low first). Run `python3 scripts/tracker.py focus {COURSE}`; concepts linked to the next exam or quiz go ahead of others at the same confidence
 3. Generate 1–2 questions for each low/medium-confidence concept
 4. Save to `wiki/exam-prep/{course}.md`
 
@@ -30,6 +30,7 @@ Mix the following types; do not use only recall questions:
 tags: [exam-prep, {course}]
 generated: YYYY-MM-DD
 based_on: [concept-pages]
+for_item: "[[{tracker-item-id}]]"   # optional: the exam or quiz this set prepares for
 ---
 # {Course} Practice Questions
 

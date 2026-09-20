@@ -45,6 +45,7 @@ Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` 
 4. **Read the source** from its `raw/` copy and extract 3–5 key takeaways. `.pdf`, `.md`, and `.txt` read directly. `.docx` and `.pptx` are zip archives: extract the text first (for example `unzip -p "{file}" word/document.xml`, or a document-reading skill when the CLI has one)
 5. **Discuss with the user and confirm** (do not skip this step)
 6. **Create a source page** `wiki/sources/{name}.md`
+6.2. **Extract assessments** (for `admin`, `assignment`, and `exam` sources): follow "Extract During Ingest" in the wiki-tracker skill. Propose the assessments found in the source as a table, copy dates and weights only as printed, wait for confirmation, then add them with `scripts/tracker.py add --source {source-page}`
 6.5. **Create/update the course overview** `wiki/courses/{COURSE}-overview.md`:
    - If missing, create it using the Course Overview Format below
    - Otherwise, append wiki links for new concepts to the Concept Map section
@@ -63,6 +64,7 @@ Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` 
     - Append new concepts to `wiki/glossary.md` using the columns Term, Domain, and Page (English term, domain, and wiki link)
     - Append a structured entry to `log.md` using the Log Entry Format below
     - In `.manifest.json`, add the wiki fields to the entry the script created; leave its provenance fields unchanged
+    - When tracker items were added or changed, run `python3 scripts/tracker.py hot` to refresh the `## Upcoming` section of `hot.md`
 
 ## Manifest Format
 
@@ -85,6 +87,7 @@ Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` 
       "pages_created": ["wiki/sources/L3.md"],
       "concepts_created": ["Attention-Mechanism"],
       "concepts_updated": ["Transformer"],
+      "tracker_items": [],
       "connections_found": 2,
       "contradictions_found": 0
     }
@@ -98,7 +101,7 @@ Propose all destinations in one table and get one go-ahead, then file each sourc
 
 ## Completion Report
 
-"Processed N sources. Created X pages and updated Y pages. Cross-course connections found: ..."
+"Processed N sources. Created X pages and updated Y pages. Tracker items added: N. Cross-course connections found: ..."
 
 ## Course Overview Format
 
@@ -107,6 +110,7 @@ File: `wiki/courses/{COURSE}-overview.md`
 ---
 tags: [course-overview, {course-code}]
 course: {COURSE-CODE}
+target_grade:
 updated: YYYY-MM-DD
 ---
 # {COURSE-CODE} · {Course Name}
@@ -116,6 +120,14 @@ updated: YYYY-MM-DD
 
 ## Concept Map
 [[Concept-A]] · [[Concept-B]] · ...
+
+## Assessments
+\`\`\`dataview
+TABLE WITHOUT ID file.link AS "Item", type AS "Type", due AS "Due", weight AS "Weight %", status AS "Status", mark AS "Mark", out_of AS "Out of"
+FROM "wiki/tracker"
+WHERE course = "{COURSE-CODE}" AND type != "todo"
+SORT due ASC
+\`\`\`
 
 ## Weak Areas
 \`\`\`dataview
@@ -151,6 +163,7 @@ Append to `wiki/log.md`:
 - Updated concepts: [[Concept-C]]
 - Cross-course connections: N (see connections-log.md)
 - Contradictions: N (see contradictions.md)
+- Tracker items: [[COMP6713-assignment-2]] (omit the line when there are none)
 ```
 
 ## Contradiction Format

@@ -10,6 +10,7 @@ Test understanding using the Feynman technique.
 ## Steps
 
 1. Read `wiki/hot.md` and `wiki/index.md` to locate the target concepts
+1.5. For a course target, run `python3 scripts/tracker.py focus {COURSE}`. When it returns the next exam or quiz, quiz its flagged concepts first and tell the student how many days are left
 2. Find concepts with confidence:low/medium (prioritize weak concepts)
 3. **Feynman questions**: Ask as a complete beginner; have the user explain in the simplest terms
    - Ask "why" and "what if", not "what is"

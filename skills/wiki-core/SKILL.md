@@ -20,6 +20,7 @@ wiki/            ← Layer 2: Knowledge you maintain
   concepts/      ←   Concept pages (core)
   sources/       ←   Source pages
   exam-prep/     ←   Practice questions
+  tracker/       ←   Assessments, deadlines, exams, to-dos (one page per item)
 raw/.manifest.json  ← Provenance + dedup tracker (original path, SHA-256, wiki pages produced)
 (These skills are Layer 3: operating rules)
 ```
@@ -55,8 +56,8 @@ Sections: Intuition (Feynman style) → Detailed → [Diagram, optional; see wik
 
 ## Course Overview Format
 
-File: `wiki/courses/{COURSE}-overview.md`, frontmatter: `tags: [course-overview, {course-code}]` + `course: {COURSE-CODE}` + `updated: YYYY-MM-DD`
-Sections: Summary (one sentence) → Concept Map (list of wiki links) → Weak Areas (Dataview: confidence=low) → Sources (Dataview: sources by course tag)
+File: `wiki/courses/{COURSE}-overview.md`, frontmatter: `tags: [course-overview, {course-code}]` + `course: {COURSE-CODE}` + `target_grade: {number, optional}` + `updated: YYYY-MM-DD`
+Sections: Summary (one sentence) → Concept Map (list of wiki links) → Assessments (Dataview: tracker items for the course) → Weak Areas (Dataview: confidence=low) → Sources (Dataview: sources by course tag)
 
 ## Source Page Format
 
@@ -73,9 +74,13 @@ original_name: {filename as received}
 ```
 Sections: Key Takeaways (3–5) → Diagram Descriptions (note whether a Mermaid redraw is recommended; see wiki-diagram skill) → New Concepts → Updated Pages
 
+## Tracker Item Format
+
+File: `wiki/tracker/{COURSE}-{slug}.md`, created and changed through `scripts/tracker.py`. Fields: `type`, `course`, `title`, `due`, `due_time`, `weight`, `status`, `start_by`, `mark`, `out_of`, `hurdle`, `concepts`, `sources`, `needs_check`. The wiki-tracker skill holds the full format and the commands.
+
 ## Hot Cache Contents
 
-After each operation, update `wiki/hot.md` (≤500 words): three most recent sources / recent concepts / current weak concepts / pending tasks
+After each operation, update `wiki/hot.md` (≤500 words): upcoming deadlines (the `## Upcoming` section, written by `python3 scripts/tracker.py hot`) / three most recent sources / recent concepts / current weak concepts / pending tasks
 
 ## Domain Rules
 
@@ -92,3 +97,4 @@ After each operation, update `wiki/hot.md` (≤500 words): three most recent sou
 3. Cross-course connections provide the greatest value
 4. Mark uncertainty with confidence:low
 5. Token budget rules take precedence
+6. Tracker dates, priorities and grade figures come from `scripts/tracker.py`; report its output as printed
