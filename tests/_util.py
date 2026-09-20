@@ -11,11 +11,22 @@ CLI = [sys.executable, "-m", "student_ai_wiki"]
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(SRC), os.environ.get("PYTHONPATH")]))
 os.environ.pop("STUDENT_WIKI_ROOT", None)
 
+# The update check must never reach the network from a test. A test that wants it active builds
+# its own env, drops this key and points STUDENT_WIKI_UPDATE_CACHE at a file it wrote itself.
+os.environ["STUDENT_WIKI_NO_UPDATE_CHECK"] = "1"
+os.environ.pop("STUDENT_WIKI_UPDATE_CACHE", None)
+os.environ.pop("STUDENT_WIKI_UPDATE_URL", None)
+
+# test_update.py imports the module in process; every other test goes through the CLI.
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 
 import hashlib  # noqa: E402
 import json  # noqa: E402
 import subprocess  # noqa: E402
 import tempfile  # noqa: E402
+import time  # noqa: E402
 import unittest  # noqa: E402
 
 
@@ -55,3 +66,16 @@ class VaultCase(unittest.TestCase):
 
     def state(self):
         return json.loads((self.vault / ".student-wiki" / "state.json").read_text(encoding="utf-8"))
+
+    def update_env(self, latest="99.0.0", age_seconds=0, **extra):
+        """An environment whose update check is on and answered by a cache file written here.
+
+        A cache entry inside its 24 hour window is served without a request, so a test that uses
+        this stays offline while exercising the whole notice path.
+        """
+        path = self.base / "update-check.json"
+        path.write_text(json.dumps({"schema": 1, "tool": "student-ai-wiki", "latest": latest,
+                                    "checked_at": int(time.time()) - age_seconds}), encoding="utf-8")
+        env = dict(os.environ, STUDENT_WIKI_UPDATE_CACHE=str(path), **extra)
+        env.pop("STUDENT_WIKI_NO_UPDATE_CHECK", None)
+        return env
