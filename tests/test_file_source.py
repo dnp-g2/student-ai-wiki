@@ -1,4 +1,4 @@
-"""Tests for scripts/file_source.py. Run: python3 -m unittest discover -s tests"""
+"""Tests for `student-wiki file`. Run: python3 -m unittest discover -s tests"""
 import hashlib
 import json
 import os
@@ -9,7 +9,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "file_source.py"
+from _util import CLI
 
 
 class FileSourceTest(unittest.TestCase):
@@ -32,7 +32,7 @@ class FileSourceTest(unittest.TestCase):
     def run_script(self, path, *extra, course="comp6713", kind="lecture", home=None):
         env = dict(os.environ, HOME=str(home)) if home else None
         return subprocess.run(
-            [sys.executable, str(SCRIPT), str(path), "--course", course, "--type", kind,
+            [*CLI, "file", str(path), "--course", course, "--type", kind,
              "--root", str(self.root), *extra],
             capture_output=True, text=True, env=env,
         )

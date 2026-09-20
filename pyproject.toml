@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "student-ai-wiki"
+dynamic = ["version"]
+description = "A course knowledge wiki for Obsidian, maintained by Claude Code or Codex: ingest, review, exam prep, deadlines and grades."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "dnp-g2" }]
+keywords = ["obsidian", "wiki", "study", "claude-code", "codex", "students"]
+dependencies = ['tzdata; platform_system == "Windows"']
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+]
+
+[project.urls]
+Homepage = "https://github.com/dnp-g2/student-ai-wiki"
+Issues = "https://github.com/dnp-g2/student-ai-wiki/issues"
+Changelog = "https://github.com/dnp-g2/student-ai-wiki/blob/main/CHANGELOG.md"
+
+[project.scripts]
+student-wiki = "student_ai_wiki.cli:main"
+student-ai-wiki = "student_ai_wiki.cli:main"
+
+[tool.hatch.version]
+path = "src/student_ai_wiki/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/student_ai_wiki"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproject.toml"]
