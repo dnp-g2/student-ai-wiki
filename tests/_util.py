@@ -51,7 +51,7 @@ class VaultCase(unittest.TestCase):
         return json.loads(proc.stdout)
 
     def init(self, *extra):
-        return self.cli_json("init", self.vault, *extra)
+        return self.cli_json("init", self.vault, "--json", *extra)
 
     def state(self):
         return json.loads((self.vault / ".student-wiki" / "state.json").read_text(encoding="utf-8"))

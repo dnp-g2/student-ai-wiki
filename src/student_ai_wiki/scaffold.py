@@ -15,6 +15,7 @@ is how upgrade tells an untouched file from one the student edited.
 """
 import hashlib
 import json
+import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -265,6 +266,85 @@ class Sync:
         return out
 
 
+# ---------- human-readable output ----------
+
+AI_TOOLS = ("claude", "codex")
+
+
+def shell_path(path: Path) -> str:
+    """The path as a student would type it: ~/... under the home folder, quoted when it needs it."""
+    home = Path.home().resolve()
+    if home in path.parents:
+        rel = path.relative_to(home).as_posix()
+        if shlex.quote(rel) == rel:
+            return "~/" + rel
+    return shlex.quote(str(path))
+
+
+def start_command(root: Path) -> str:
+    """A program cannot change the directory of the shell that ran it, so init prints the line to paste."""
+    installed = [tool for tool in AI_TOOLS if shutil.which(tool)]
+    return f"cd {shell_path(root)} && {installed[0] if installed else AI_TOOLS[0]}"
+
+
+def count(items, noun: str) -> str:
+    return f"{len(items)} {noun}{'' if len(items) == 1 else 's'}"
+
+
+def bullet_list(title: str, items) -> list:
+    return [title, *[f"    {item}" for item in items]] if items else []
+
+
+def render_init(result: dict) -> str:
+    dry = result["status"] == "proposed"
+    written = result.get("created", []) + result.get("seed_created", [])
+    lines = [f"{'Would create' if dry else 'Created'} your vault at {result['root']}  (student-wiki {result['version']})",
+             f"  {count(written, 'file')}: the AI rules (AGENTS.md, skills, slash commands), a starter wiki/ and raw/, "
+             "Home.md and the Obsidian settings"]
+    kept = result.get("seed_kept", []) + result.get("skipped_modified", [])
+    lines += bullet_list(f"  Already there and left as they were ({len(kept)}):", kept)
+    if dry:
+        return "\n".join(lines + ["", "Nothing was written. Run the same command without --dry-run to create it."])
+    installed = [tool for tool in AI_TOOLS if shutil.which(tool)]
+    others = [tool for tool in installed if not result["start_command"].endswith(tool)]
+    lines += ["", "Next:",
+              "  1. Open the folder in Obsidian (Open folder as vault), then enable the Dataview community plugin.",
+              "  2. Start your AI tool inside the vault. Paste this line:", "",
+              f"       {result['start_command']}" + (f"        (or: {others[0]})" if others else ""), ""]
+    if not installed:
+        lines += ["     Neither claude nor codex is installed yet. Install one first:",
+                  "       Claude Code  https://docs.anthropic.com/claude-code",
+                  "       Codex CLI    https://developers.openai.com/codex/cli", ""]
+    lines += ["  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
+    return "\n".join(lines)
+
+
+def render_upgrade(result: dict) -> str:
+    status = result["status"]
+    versions = result["to_version"] if result["from_version"] == result["to_version"] \
+        else f"{result['from_version']} -> {result['to_version']}"
+    if status == "up_to_date":
+        return f"Your vault at {result['root']} is up to date (student-wiki {versions})."
+    dry = status == "proposed"
+    changed = any(result.get(key) for key in ("created", "updated", "removed"))
+    verb = "Would upgrade" if dry else ("Upgraded" if changed else "Checked")
+    lines = [f"{verb} your vault at {result['root']}  (student-wiki {versions})"]
+    for key, verb in (("created", "added"), ("updated", "updated"), ("removed", "removed")):
+        lines += bullet_list(f"  {count(result.get(key, []), 'file')} {verb}:", result.get(key, []))
+    if result.get("settings") in ("created", "updated"):
+        lines.append("  Session hook in .claude/settings.json refreshed; your other settings were kept.")
+    if result.get("backed_up_to"):
+        lines.append(f"  Your edited versions {'would be' if dry else 'were'} saved under {result['backed_up_to']}/")
+    skipped = result.get("skipped_modified", []) + result.get("orphaned_modified", [])
+    lines += bullet_list(f"  Left alone because you edited them ({len(skipped)}):", skipped)
+    if skipped:
+        lines.append("  To install the new versions and keep a backup of yours: student-wiki upgrade --force")
+    lines.append("  Your wiki/, raw/, Home.md and .obsidian/ were not touched.")
+    if dry:
+        lines += ["", "Nothing was written. Run the same command without --dry-run to apply it."]
+    return "\n".join(lines)
+
+
 # ---------- init ----------
 
 def cmd_init(args) -> None:
@@ -283,12 +363,16 @@ def cmd_init(args) -> None:
 
     result = {"status": "proposed" if args.dry_run else "created", "root": str(root), "version": __version__}
     result.update(sync.summary())
+    result["start_command"] = start_command(root)
     result["next_steps"] = [
         f"Open {root} in Obsidian (Open folder as vault) and enable the Dataview community plugin",
-        f"cd {root} and start claude or codex",
+        f"Start your AI tool inside the vault: {result['start_command']}",
         "Say: ingest ~/Downloads/<your first lecture file>",
     ]
-    emit(result)
+    if args.json:
+        emit(result)
+    else:
+        print(render_init(result))
 
 
 # ---------- upgrade ----------
@@ -334,7 +418,10 @@ def cmd_upgrade(args) -> None:
                           "student-wiki upgrade --force backs them up under .student-wiki/backups/ "
                           "and installs the new versions.")
     sync.save(state)
-    emit(result)
+    if args.json:
+        emit(result)
+    else:
+        print(render_upgrade(result))
 
 
 # ---------- doctor ----------

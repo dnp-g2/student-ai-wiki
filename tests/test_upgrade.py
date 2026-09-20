@@ -15,7 +15,7 @@ class UpgradeTest(VaultCase):
         self.shipped = (self.vault / SKILL).read_bytes()
 
     def upgrade(self, *extra):
-        return self.cli_json("upgrade", "--root", self.vault, *extra)
+        return self.cli_json("upgrade", "--root", self.vault, "--json", *extra)
 
     def rewrite_state(self, change):
         path = self.vault / ".student-wiki" / "state.json"

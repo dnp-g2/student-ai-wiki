@@ -59,6 +59,8 @@ If the shell cannot find `student-wiki`, run `pipx ensurepath` (or `uv tool upda
 student-wiki init ~/StudyVault
 ```
 
+`init` finishes by printing the next steps, including a line you can paste to start your AI tool inside the vault.
+
 **2. Open it in Obsidian.** Open folder as vault → select `~/StudyVault`. Then Settings → Community plugins → Browse → `Dataview` → Install and enable.
 
 **3. Start your AI tool inside the vault.**
@@ -84,7 +86,7 @@ cd ~/StudyVault
 student-wiki upgrade
 ```
 
-The first command updates the tool. The second refreshes the AI rules inside your vault (`AGENTS.md`, `SCHEMA.md`, the skills, the slash commands, the session hook). It never touches `wiki/`, `raw/`, `Home.md`, `.obsidian/` or your tracker settings. If you edited one of the rule files yourself, `upgrade` leaves that file alone and tells you; `student-wiki upgrade --force` saves your version under `.student-wiki/backups/` and installs the new one. Add `--dry-run` to either command to preview it.
+The first command updates the tool. The second refreshes the AI rules inside your vault (`AGENTS.md`, `SCHEMA.md`, the skills, the slash commands, the session hook). It never touches `wiki/`, `raw/`, `Home.md`, `.obsidian/` or your tracker settings. If you edited one of the rule files yourself, `upgrade` leaves that file alone and tells you; `student-wiki upgrade --force` saves your version under `.student-wiki/backups/` and installs the new one. Add `--dry-run` to either command to preview it. `init` and `upgrade` print a short summary; add `--json` for the full machine-readable report.
 
 `student-wiki doctor` checks the install and the vault and tells you what to fix.
 

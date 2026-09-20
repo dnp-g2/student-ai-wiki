@@ -1,8 +1,8 @@
 """
 cli.py - the `student-wiki` command.
 
-  student-wiki init [DIR] [--dry-run]
-  student-wiki upgrade [--root DIR] [--force] [--dry-run]
+  student-wiki init [DIR] [--dry-run] [--json]
+  student-wiki upgrade [--root DIR] [--force] [--dry-run] [--json]
   student-wiki doctor [--root DIR] [--json]
   student-wiki tracker <command> ...     deadlines, grades, calendar (see: tracker --help)
   student-wiki file <path> ...           file a course source into raw/ (see: file --help)
@@ -30,11 +30,13 @@ def build_parser() -> argparse.ArgumentParser:
     init = commands.add_parser("init", help="create a vault")
     init.add_argument("dir", nargs="?", default=".", help="vault folder (default: the current directory)")
     init.add_argument("--dry-run", action="store_true", help="print the proposal and write nothing")
+    init.add_argument("--json", action="store_true", help="print one JSON object")
 
     upgrade = commands.add_parser("upgrade", help="refresh the tool-owned files in a vault")
     upgrade.add_argument("--root", help=ROOT_HELP)
     upgrade.add_argument("--force", action="store_true", help="back up locally modified files, then overwrite them")
     upgrade.add_argument("--dry-run", action="store_true", help="print the proposal and write nothing")
+    upgrade.add_argument("--json", action="store_true", help="print one JSON object")
 
     doctor = commands.add_parser("doctor", help="check the install and the vault")
     doctor.add_argument("--root", help=ROOT_HELP)
