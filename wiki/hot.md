@@ -13,6 +13,7 @@ tags: [meta, hot-cache]
 (None)
 
 ## Recent
+- 2026-09-20: Added the tracker: `wiki/tracker/` items, `scripts/tracker.py`, session briefing, grade what-if, `.ics` calendar feed. Say `add deadline ...` or ingest a course outline to start.
 - 2026-09-20: Corrected setup instructions to target dnp-g2/student-ai-wiki and credited the upstream project.
 - 2026-09-20: Standardized on AGENTS.md for Claude Code CLI (≥2.1.277) and OpenAI Codex CLI; shared skills use native discovery links.
 - 2026-09-20: Switched all docs, instructions, and wiki templates to English.

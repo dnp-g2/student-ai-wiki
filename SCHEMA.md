@@ -25,12 +25,13 @@ Canonical skills live in `skills/`. `.claude/skills` and `.agents/skills` are re
 | `wiki-review` | "review" | Feynman questions + update confidence |
 | `exam-prep` | "exam-prep" | Generate questions for weak concepts |
 | `wiki-diagram` | "diagram" | Add Mermaid diagrams to concept pages |
+| `wiki-tracker` | "add deadline" / "due" / "grades" / "calendar" | Assessments, deadlines, to-dos, grade what-if, session briefing, `.ics` feed (`scripts/tracker.py`) |
 
 ## Requests and Claude Slash Commands
 
-Both CLIs accept plain-text requests: `ingest [file]`, `lint`, `review [course]`, `exam-prep [course]`, and `diagram [concept]`.
+Both CLIs accept plain-text requests: `ingest [file]`, `lint`, `review [course]`, `exam-prep [course]`, `diagram [concept]`, `add deadline [details]`, `due`, `grades [course]`, and `calendar`.
 
-Claude Code additionally exposes `/ingest [file]`, `/lint`, `/review [course]`, `/exam-prep [course]`, and `/diagram [concept]`. These slash commands are not portable to Codex; use the plain-text requests there.
+Claude Code additionally exposes `/ingest [file]`, `/lint`, `/review [course]`, `/exam-prep [course]`, `/diagram [concept]`, `/tracker [request]`, and `/due [course]`. These slash commands are not portable to Codex; use the plain-text requests there.
 
 ## Why Split into Skills?
 

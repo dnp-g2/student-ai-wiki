@@ -35,3 +35,13 @@ tags: [meta, log]
 - Added `tests/test_file_source.py` for the filing script.
 - Rewrote the setup guide in the source folder to describe the new workflow, part of the change the user approved. The manifest holds no sources yet.
 - Nothing was ingested or reviewed.
+
+## 2026-09-20 · Tracker for Assessments, Deadlines and Grades
+- Added `wiki/tracker/`: one page per assignment, quiz, exam or to-do, with due date, time, weight, status, mark, hurdle, linked concepts and sources. `Dashboard.md` shows the whole semester and `_config.md` holds timezone, term dates and the default target grade.
+- Added `scripts/tracker.py` (standard library only) with `add`, `update`, `done`, `mark`, `plan`, `target`, `list`, `focus`, `brief`, `grades`, `hot`, `ics` and `check`. It owns every date calculation, priority score and grade figure.
+- Big items get a start-by date and milestones sized by weight. Exams linked to weak concepts produce dated `review` and `exam-prep` suggestions.
+- `ics` writes `calendar/student-wiki.ics` with reminders; `--publish-gist` is an opt-in upload to a secret gist.
+- Sessions open with a tracker briefing (AGENTS.md rule plus a Claude Code SessionStart hook). `hot.md` gained an Upcoming section.
+- Ingest proposes the assessments found in course outlines, assignment specs and exam notices. Lint runs the tracker health check. Review and exam-prep start from the next exam's weak concepts.
+- Added the `wiki-tracker` skill, the `/tracker` and `/due` commands, and `tests/test_tracker.py`.
+- Nothing was ingested or reviewed.
