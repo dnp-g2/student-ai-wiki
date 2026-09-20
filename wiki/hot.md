@@ -10,6 +10,8 @@ tags: [meta, hot-cache]
 - No slides or concept pages yet
 
 ## Recent
+- 2026-09-20: Corrected setup instructions to target dnp-g2/student-ai-wiki and credited the upstream project.
+- 2026-09-20: Standardized on AGENTS.md for Claude Code CLI (≥2.1.277) and OpenAI Codex CLI; shared skills use native discovery links.
 - 2026-09-20: Switched all docs, instructions, and wiki templates to English.
 
 ## Weak Concepts

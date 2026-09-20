@@ -2,6 +2,13 @@
 
 You maintain this student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
 
+## Supported CLIs and Shared Instructions
+
+- Supported tools: Claude Code CLI **2.1.277 or newer** and OpenAI Codex CLI.
+- This root `AGENTS.md` is the single project instruction entry point for both CLIs. Start the CLI from the repository root.
+- Canonical operation rules live in `skills/`; load only the relevant skill on demand. `.claude/skills/` and `.agents/skills/` expose those same files for native discovery, not separate rule copies.
+- The requests below are plain-text prompts for either CLI. Claude also exposes slash commands through `.claude/commands/`; do not assume those slash commands exist in Codex.
+
 ## Operation Rules
 
 Read the corresponding rules file before each operation (load on demand to save tokens):

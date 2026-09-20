@@ -9,12 +9,15 @@ tags: [home]
 
 | Command | Purpose |
 |---|---|
-| `/ingest raw/COMPXXXX/L1.pdf` | Turn slides into notes (files you already added are skipped) |
-| `/lint` | Check the wiki for problems and flag concepts you have not reviewed lately |
-| `/review COMPXXXX` | Get quizzed on a course |
-| `/exam-prep COMPXXXX` | Get practice questions on your weak concepts |
+| `ingest raw/COMPXXXX/L1.pdf` | Turn slides into notes (files you already added are skipped) |
+| `lint` | Check the wiki for problems and flag concepts you have not reviewed lately |
+| `review COMPXXXX` | Get quizzed on a course |
+| `exam-prep COMPXXXX` | Get practice questions on your weak concepts |
+| `diagram Attention-Mechanism` | Add a Mermaid diagram to a concept page |
 
-> Put your course PDFs in `raw/{course-code}/`, then run `/ingest`. The course overview is created for you.
+> Put your course PDFs in `raw/{course-code}/`, then type `ingest`. The course overview is created for you.
+>
+> Type these inside Claude Code or Codex. Claude Code also accepts them with a leading slash (`/ingest`, `/lint`, `/review`, `/exam-prep`, `/diagram`).
 
 ## 📚 Courses
 

@@ -1,11 +1,13 @@
 # SCHEMA: Design Reference
 
 > This file is now a human-readable reference only.
-> The actual operating rules live in the `skills/` directory.
+> Shared project instructions live in `AGENTS.md`; operational rules live in the `skills/` directory.
 
 ## How It Works
 
-This Claude Code / Cowork plugin implements a student version of the Karpathy LLM Wiki pattern.
+This project supports Claude Code CLI (minimum version **2.1.277**) and OpenAI Codex CLI and implements a student version of the Karpathy LLM Wiki pattern. Both CLIs use the root `AGENTS.md` as their single project instruction entry point.
+
+Canonical skills live in `skills/`. `.claude/skills` and `.agents/skills` are relative symlinks to `skills/`, which gives both CLIs native discovery from one copy of the rules. `.claude/commands` is a relative symlink to `commands/`. The `.claude-plugin/` metadata preserves optional Claude plugin packaging; Codex does not use that packaging. Repository-local usage requires no plugin installation.
 
 | Layer | Contents | Location |
 |---|---|---|
@@ -22,10 +24,13 @@ This Claude Code / Cowork plugin implements a student version of the Karpathy LL
 | `wiki-lint` | "lint" / "check" | Health check + confidence decay |
 | `wiki-review` | "review" | Feynman questions + update confidence |
 | `exam-prep` | "exam-prep" | Generate questions for weak concepts |
+| `wiki-diagram` | "diagram" | Add Mermaid diagrams to concept pages |
 
-## Commands (Slash Commands)
+## Requests and Claude Slash Commands
 
-`/ingest [file]` · `/lint` · `/review [course]` · `/exam-prep [course]`
+Both CLIs accept plain-text requests: `ingest [file]`, `lint`, `review [course]`, `exam-prep [course]`, and `diagram [concept]`.
+
+Claude Code additionally exposes `/ingest [file]`, `/lint`, `/review [course]`, `/exam-prep [course]`, and `/diagram [concept]`. These slash commands are not portable to Codex; use the plain-text requests there.
 
 ## Why Split into Skills?
 

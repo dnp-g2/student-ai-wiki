@@ -1,6 +1,6 @@
 # 📂 Drop Course Slides Here
 
-Drop your course PDFs, slides, and handouts into the corresponding course subfolder, then tell Cowork:
+Drop your course PDFs, slides, and handouts into the corresponding course subfolder, then tell your CLI (Claude Code or Codex):
 
 ```
 ingest raw/COMP6713/Lecture3-Attention.pdf
@@ -20,4 +20,4 @@ ingest raw/COMP6713/Lecture3-Attention.pdf
 
 ---
 
-> Cowork only reads the files in this folder.
+> The AI only reads the files in this folder.

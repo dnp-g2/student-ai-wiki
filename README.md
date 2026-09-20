@@ -27,12 +27,12 @@ Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/4
 
 | Tool | Best for | Get it |
 |---|---|---|
-| Claude Code CLI | Terminal users | [Install guide](https://docs.anthropic.com/claude-code) |
-| Claude Code Web | No install needed | [claude.ai/code](https://claude.ai/code) |
-| Cursor | IDE-style interface | [cursor.com](https://www.cursor.com) |
-| Trae | Users in China | [trae.ai](https://www.trae.ai) |
-| Cowork | Team use | See Cowork docs |
-| GitHub Copilot | Existing subscribers | VS Code marketplace |
+| Claude Code CLI **≥2.1.277** | Claude in your terminal | [Install guide](https://docs.anthropic.com/claude-code) |
+| OpenAI Codex CLI | Codex in your terminal | [Install guide](https://developers.openai.com/codex/cli) |
+
+**The minimum supported Claude Code CLI version is 2.1.277.** Older versions are not supported. Use a current OpenAI Codex CLI release.
+
+Both CLIs use the root [`AGENTS.md`](AGENTS.md) as their shared project instructions and load operational rules from [`skills/`](skills/) on demand. Only these two CLIs are supported.
 
 **3. Your course slides** (PDF or other text formats)
 
@@ -41,11 +41,11 @@ Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/4
 ### Step 1: Clone the repo and open in Obsidian
 
 ```bash
-git clone https://github.com/IssacW228/student-llm-wiki.git
-cd student-llm-wiki
+git clone https://github.com/dnp-g2/student-ai-wiki.git
+cd student-ai-wiki
 ```
 
-Open Obsidian → "Open folder as vault" → select the `student-llm-wiki` folder.
+Open Obsidian → "Open folder as vault" → select the `student-ai-wiki` folder.
 
 > **Install the Dataview plugin**: Obsidian Settings → Community plugins → Browse → search `Dataview` → Install and enable.
 
@@ -56,60 +56,37 @@ Open Obsidian → "Open folder as vault" → select the `student-llm-wiki` folde
 <details>
 <summary><strong>Claude Code CLI</strong></summary>
 
-1. Make sure Claude Code CLI is installed and you're logged in
-2. Run in the project folder:
+1. Install Claude Code CLI using the [official guide](https://docs.anthropic.com/claude-code).
+2. Check `claude --version`. This project requires **2.1.277 or newer**; upgrade before continuing if yours is older.
+3. Run in the repository root:
    ```bash
    claude
    ```
-3. Claude Code finds the `.claude/` config folder by itself, so there is nothing to set up
-4. Type commands or plain English to get started
+4. Follow the sign-in prompts on first launch.
+5. Project instructions come from `AGENTS.md`. `.claude/skills/` and `.claude/commands/` expose the shared skills and Claude slash commands.
+6. Type a plain-text request such as `lint`, or use a Claude slash command such as `/lint`.
 
 </details>
 
 <details>
-<summary><strong>Claude Code Web (no install needed)</strong></summary>
+<summary><strong>OpenAI Codex CLI</strong></summary>
 
-1. Go to [claude.ai/code](https://claude.ai/code)
-2. Connect this repository to Claude Code
-3. Claude Code finds the `.claude/` config by itself, so you can start typing commands right away
-
-</details>
-
-<details>
-<summary><strong>Cursor</strong></summary>
-
-1. Open the `student-llm-wiki` folder in Cursor
-2. The rules in `.cursor/rules/wiki.mdc` are already set up and apply automatically
-3. Type commands in the Cursor chat panel
-
-</details>
-
-<details>
-<summary><strong>Trae</strong></summary>
-
-1. Open the `student-llm-wiki` folder in Trae
-2. The skills in `.trae/skills/` are already set up and Trae finds them by itself
-3. Type commands in the chat panel
+1. Install Codex CLI using the [official guide](https://developers.openai.com/codex/cli), for example with npm:
+   ```bash
+   npm install -g @openai/codex
+   ```
+2. Check the installation with `codex --version`.
+3. Run in the repository root:
+   ```bash
+   codex
+   ```
+4. Follow the sign-in prompts on first launch, or run `codex login` beforehand.
+5. Codex reads `AGENTS.md` automatically and discovers the shared skills through `.agents/skills/`.
+6. Enter plain-text requests such as `ingest raw/MATH1001/L1.pdf`, `lint`, or `review MATH1001`. The Claude slash commands are not Codex commands.
 
 </details>
 
-<details>
-<summary><strong>Cowork</strong></summary>
-
-1. Point your Cowork project at the `student-llm-wiki` folder
-2. `COWORK-INSTRUCTIONS.md` loads automatically
-3. Start chatting
-
-</details>
-
-<details>
-<summary><strong>GitHub Copilot / OpenAI Codex</strong></summary>
-
-1. Open the project in an editor with Copilot support
-2. `AGENTS.md` is read automatically
-3. Type commands in the chat panel
-
-</details>
+The skill and command discovery directories (`.claude/skills`, `.claude/commands`, `.agents/skills`) are relative symlinks to the canonical `skills/` and `commands/` directories. Preserve symlinks when cloning or copying the repository (Windows Git may require Developer Mode and symlink support). If native skill discovery is unavailable, explicitly ask the CLI to read `AGENTS.md` and follow its operation-rule paths; all canonical rules remain in `skills/`.
 
 ---
 
@@ -140,6 +117,8 @@ Open Obsidian → "Open folder as vault" → select the `student-llm-wiki` folde
 
 You can also use plain English: "quiz me on this course" or "import this file into the wiki".
 
+These are prompts entered inside either CLI, not shell commands. Claude Code additionally supports `/ingest`, `/lint`, `/review`, `/exam-prep`, and `/diagram`. Codex uses the plain-text requests above with the same underlying skills.
+
 ---
 
 ### Adding a new course
@@ -154,7 +133,7 @@ You can also use plain English: "quiz me on this course" or "import this file in
 ### Project structure
 
 ```
-student-llm-wiki/
+student-ai-wiki/
 ├── raw/              ← Your slides (the AI only reads these)
 │   └── XXXX/         ← One folder per course
 ├── wiki/             ← AI-generated notes (auto-maintained)
@@ -170,18 +149,21 @@ student-llm-wiki/
 │   └── hot.md              ← AI context cache (read first each session)
 ├── Home.md           ← Obsidian dashboard
 │
-│   AI tool config (you can leave these alone):
-├── .claude/          ← Claude Code config
-├── .cursor/          ← Cursor config
-├── .trae/            ← Trae config
-├── AGENTS.md         ← Copilot/Codex config
-└── COWORK-INSTRUCTIONS.md  ← Cowork config
+│   Shared instructions and CLI discovery:
+├── AGENTS.md         ← Single instruction entry point for both CLIs
+├── skills/           ← Canonical operation rules (loaded on demand)
+├── commands/         ← Canonical Claude slash-command definitions
+├── .agents/skills    ← Symlink to skills/ (Codex discovery)
+├── .claude/skills    ← Symlink to skills/ (Claude discovery)
+├── .claude/commands  ← Symlink to commands/ (Claude slash commands)
+└── .claude-plugin/   ← Optional Claude plugin packaging
 ```
 
 ---
 
 ### Credits
 
+- [IssacW228's student-llm-wiki](https://github.com/IssacW228/student-llm-wiki) (the upstream project this fork is based on)
 - [Andrej Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) (the original pattern)
 - [claude-obsidian](https://github.com/AgriciDaniel/claude-obsidian) (hot cache, manifest dedup, splitting rules into skills)
 - [Obsidian](https://obsidian.md) (where you read your notes)
