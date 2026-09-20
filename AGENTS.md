@@ -21,10 +21,11 @@ Read the corresponding rules file before each operation (load on demand to save 
 | review | `skills/wiki-review/SKILL.md` |
 | exam-prep | `skills/exam-prep/SKILL.md` |
 | diagram | `skills/wiki-diagram/SKILL.md` |
+| tracker (deadlines, exams, to-dos, grades, calendar) | `skills/wiki-tracker/SKILL.md` |
 
 ## Token Budget Rules (Highest Priority)
 
-1. **Read only `wiki/hot.md` first at each session start** (≤500 words)
+1. **Read only `wiki/hot.md` first at each session start** (≤500 words). Then run `python3 scripts/tracker.py brief`, unless a tracker brief is already in context, and open your first reply with its overdue and due-soon lines (at most 5 lines)
 2. Read `wiki/index.md` only if more context is needed
 3. Read at most 3–5 existing pages per ingest
 4. Make local edits; do not rewrite entire pages
@@ -37,6 +38,7 @@ Read the corresponding rules file before each operation (load on demand to save 
 raw/{course}/{type}/  ← Filed sources, read-only: YYYY-MM-DD-{type}-{slug}.{ext}
                         (lectures, tutorials, assignments, exams, readings, notes, admin)
 scripts/file_source.py ← Copies a source into raw/, renames it, records provenance
+scripts/tracker.py     ← Deadlines, priorities, grades, calendar feed; owns every date calculation
 wiki/
   hot.md         ← Context cache, read first
   index.md       ← Master catalog
@@ -44,6 +46,7 @@ wiki/
   sources/       ← Source pages
   courses/       ← Course overviews
   exam-prep/     ← Practice questions
+  tracker/       ← Assessments, deadlines, exams, to-dos (one page per item)
 raw/.manifest.json  ← Provenance + dedup tracker
 ```
 
@@ -54,6 +57,10 @@ raw/.manifest.json  ← Provenance + dedup tracker
 - `review COMP9417`: Feynman review
 - `exam-prep COMP4337`: Generate questions for weak concepts
 - `diagram Attention-Mechanism`: Add a Mermaid diagram to a concept page
+- `add deadline COMP9417 assignment 2 due 12 Oct 23:59 worth 20%`: Track an assessment or to-do (previewed first, then written)
+- `due`: Briefing of overdue items, the next 14 days, work to start now, and exam readiness
+- `grades COMP9417`: Course standing and the mark needed on the remaining work
+- `calendar`: Write the `.ics` reminder feed to `calendar/student-wiki.ics`
 
 ## Language
 
