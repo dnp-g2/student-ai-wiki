@@ -65,6 +65,33 @@ class StartTest(VaultCase):
     def test_a_folder_that_is_not_a_vault_is_not_treated_as_one(self):
         self.assertIn("No vault here yet", run_cli("start", "--root", self.base).stdout)
 
+    def test_a_newer_release_is_reported_with_both_steps(self):
+        self.init()
+        out = self.start("--compact", env=self.update_env())
+        self.assertIn("Update available: student-ai-wiki 99.0.0", out)
+        self.assertIn("pipx upgrade student-ai-wiki", out)
+        self.assertIn("student-wiki upgrade", out)
+
+    def test_hook_mode_reads_a_stale_cache_and_opens_no_socket(self):
+        self.init()
+        env = self.update_env(age_seconds=10 * 24 * 60 * 60,
+                              STUDENT_WIKI_UPDATE_URL="file:///no/such/payload.json")
+        self.assertIn("Update available: student-ai-wiki 99.0.0", self.start("--hook", env=env))
+
+    def test_the_kill_switch_beats_a_fresh_cache(self):
+        self.init()
+        env = self.update_env(STUDENT_WIKI_NO_UPDATE_CHECK="1")
+        self.assertNotIn("Update available", self.start("--compact", env=env))
+
+    def test_doctor_and_upgrade_report_a_newer_release(self):
+        self.init()
+        env = self.update_env()
+        doctor = run_cli("doctor", "--root", self.vault, env=env)
+        self.assertEqual(doctor.returncode, 0, doctor.stdout)
+        self.assertIn("99.0.0 is out", doctor.stdout)
+        self.assertIn("Update available: student-ai-wiki 99.0.0",
+                      run_cli("upgrade", "--root", self.vault, env=env).stdout)
+
     def test_json_carries_the_same_data_as_the_text(self):
         self.init()
         data = json.loads(self.start("--json"))

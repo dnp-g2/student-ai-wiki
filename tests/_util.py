@@ -76,6 +76,7 @@ class VaultCase(unittest.TestCase):
         path = self.base / "update-check.json"
         path.write_text(json.dumps({"schema": 1, "tool": "student-ai-wiki", "latest": latest,
                                     "checked_at": int(time.time()) - age_seconds}), encoding="utf-8")
-        env = dict(os.environ, STUDENT_WIKI_UPDATE_CACHE=str(path), **extra)
+        env = dict(os.environ, STUDENT_WIKI_UPDATE_CACHE=str(path))
         env.pop("STUDENT_WIKI_NO_UPDATE_CHECK", None)
+        env.update(extra)          # an explicit key wins, so a test can put the kill switch back
         return env

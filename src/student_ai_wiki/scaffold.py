@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 
-from . import __version__
+from . import __version__, update
 from .vault import STATE_DIR, STATE_SCHEMA, find_root, is_managed, load_state, save_state, write_bytes_atomic
 
 SETTINGS_PATH = ".claude/settings.json"
@@ -310,6 +310,11 @@ def bullet_list(title: str, items) -> list:
     return [title, *[f"    {item}" for item in items]] if items else []
 
 
+def with_notice(lines: list, result: dict) -> str:
+    notice = update.notice(result.get("update"))
+    return "\n".join(lines + ([""] + notice if notice else []))
+
+
 def render_init(result: dict) -> str:
     dry = result["status"] == "proposed"
     written = result.get("created", []) + result.get("seed_created", [])
@@ -319,7 +324,8 @@ def render_init(result: dict) -> str:
     kept = result.get("seed_kept", []) + result.get("skipped_modified", [])
     lines += bullet_list(f"  Already there and left as they were ({len(kept)}):", kept)
     if dry:
-        return "\n".join(lines + ["", "Nothing was written. Run the same command without --dry-run to create it."])
+        return with_notice(lines + ["", "Nothing was written. Run the same command without --dry-run to create it."],
+                           result)
     commands = result["start_commands"]
     lines += ["", "Next:",
               "  1. Open the folder in Obsidian (Open folder as vault), then enable the Dataview community plugin.",
@@ -330,7 +336,7 @@ def render_init(result: dict) -> str:
                   "       Codex CLI    https://developers.openai.com/codex/cli",
                   "       Claude Code  https://docs.anthropic.com/claude-code", ""]
     lines += ["  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
-    return "\n".join(lines)
+    return with_notice(lines, result)
 
 
 def render_upgrade(result: dict) -> str:
@@ -338,7 +344,7 @@ def render_upgrade(result: dict) -> str:
     versions = result["to_version"] if result["from_version"] == result["to_version"] \
         else f"{result['from_version']} -> {result['to_version']}"
     if status == "up_to_date":
-        return f"Your vault at {result['root']} is up to date (student-wiki {versions})."
+        return with_notice([f"Your vault at {result['root']} is up to date (student-wiki {versions})."], result)
     dry = status == "proposed"
     changed = (any(result.get(key) for key in ("created", "updated", "removed"))
                or result.get("settings") in ("created", "updated"))
@@ -357,7 +363,7 @@ def render_upgrade(result: dict) -> str:
     lines.append("  Your wiki/, raw/, Home.md and .obsidian/ were not touched.")
     if dry:
         lines += ["", "Nothing was written. Run the same command without --dry-run to apply it."]
-    return "\n".join(lines)
+    return with_notice(lines, result)
 
 
 # ---------- init ----------
@@ -384,6 +390,7 @@ def cmd_init(args) -> None:
         "Start your AI tool inside the vault: " + "   or   ".join(result["start_commands"]),
         "Say: ingest ~/Downloads/<your first lecture file>",
     ]
+    result["update"] = update.check()
     if args.json:
         emit(result)
     else:
@@ -432,6 +439,7 @@ def cmd_upgrade(args) -> None:
         result["hint"] = ("The files listed as modified were edited in this vault and were left alone. "
                           "student-wiki upgrade --force backs them up under .student-wiki/backups/ "
                           "and installs the new versions.")
+    result["update"] = update.check()
     sync.save(state)
     if args.json:
         emit(result)
@@ -514,9 +522,22 @@ def cmd_doctor(args) -> None:
     gh = shutil.which("gh")
     check("gh CLI", gh, gh or "optional; needed only for: student-wiki tracker ics --publish-gist", problem=False)
 
+    status = update.check()
+    if status["source"] == "disabled":
+        detail = f"the check is off ({update.ENV_DISABLE} is set)"
+    elif status["latest"] is None:
+        detail = "could not reach pypi.org, which is fine when you are offline"
+    elif status["available"]:
+        detail = (f"{status['latest']} is out; run: pipx upgrade student-ai-wiki "
+                  "(with uv: uv tool upgrade student-ai-wiki), then student-wiki upgrade")
+    else:
+        detail = f"{__version__} is the newest release"
+    check("latest release", not status["available"], detail, problem=False)
+
     problems = [item for item in checks if item["level"] == "problem"]
     if args.json:
-        emit({"status": "problems" if problems else "healthy", "version": __version__, "checks": checks})
+        emit({"status": "problems" if problems else "healthy", "version": __version__,
+              "update": status, "checks": checks})
     else:
         print(f"student-wiki {__version__}")
         marks = {"ok": "ok  ", "info": "note", "problem": "FAIL"}

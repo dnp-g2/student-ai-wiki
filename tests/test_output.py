@@ -57,6 +57,14 @@ class OutputTest(VaultCase):
             self.assertIn("'", command)
             self.assertIn("My Vault", command)
 
+    def test_init_shows_a_newer_release(self):
+        env = self.update_env()
+        env["PATH"] = self.fake_tools("codex")["PATH"]
+        out = run_cli("init", self.vault, env=env).stdout
+        self.assertIn("Update available: student-ai-wiki 99.0.0", out)
+        self.assertIn("student-wiki upgrade", out)
+        self.assertLess(len(out.splitlines()), 20)
+
     def test_dry_run_says_nothing_was_written(self):
         out = run_cli("init", self.vault, "--dry-run").stdout
         self.assertIn("Would create your vault", out)

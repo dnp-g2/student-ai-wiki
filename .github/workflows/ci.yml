@@ -66,6 +66,10 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # The wheel under test is usually older than the release on PyPI, so the graded steps run
+      # with the update check off. The live endpoint gets its own step below.
+      STUDENT_WIKI_NO_UPDATE_CHECK: "1"
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -82,5 +86,11 @@ jobs:
           cd "$RUNNER_TEMP/vault/wiki"
           student-wiki tracker add --type todo --title "Smoke" --due 2030-01-01
           student-wiki tracker brief --days 9999 | grep Smoke
+          student-wiki start --compact
           student-wiki upgrade --dry-run
           student-wiki doctor
+      - name: Check the live PyPI update endpoint (informational)
+        continue-on-error: true
+        env:
+          STUDENT_WIKI_NO_UPDATE_CHECK: ""
+        run: student-wiki doctor --root "$RUNNER_TEMP/vault" | grep "latest release"
