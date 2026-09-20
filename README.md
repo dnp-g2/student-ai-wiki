@@ -140,7 +140,7 @@ You can name the course and type yourself: `ingest ~/Downloads/final-2024.pdf MA
 
 You can also use plain English: "quiz me on this course" or "import this file into the wiki".
 
-These are prompts entered inside either CLI, not shell commands. Claude Code additionally supports `/ingest`, `/lint`, `/review`, `/exam-prep`, `/diagram`, `/tracker`, and `/due`. Codex uses the plain-text requests above with the same underlying skills.
+These are prompts entered inside either CLI. Claude Code additionally supports `/ingest`, `/lint`, `/review`, `/exam-prep`, `/diagram`, `/tracker`, and `/due`. Codex uses the plain-text requests above with the same underlying skills.
 
 ---
 
