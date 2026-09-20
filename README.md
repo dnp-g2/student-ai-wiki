@@ -10,7 +10,7 @@
 
 ### What is this?
 
-You drop course PDF slides into the `raw/` folder. The AI turns them into organized wiki notes in `wiki/`. You read the notes in [Obsidian](https://obsidian.md), and the AI quizzes you, writes practice questions, and shows you where you are weak. **You never write notes yourself.**
+You tell the AI where a course file is (slides, a tutorial sheet, a past exam). It files a renamed copy under `raw/`, records where the file came from, and turns it into organized wiki notes in `wiki/`. You read the notes in [Obsidian](https://obsidian.md), and the AI quizzes you, writes practice questions, and shows you where you are weak. **You never write notes yourself.**
 
 Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
@@ -34,7 +34,9 @@ Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/4
 
 Both CLIs use the root [`AGENTS.md`](AGENTS.md) as their shared project instructions and load operational rules from [`skills/`](skills/) on demand. Only these two CLIs are supported.
 
-**3. Your course slides** (PDF or other text formats)
+**3. Python 3** (already on macOS and most Linux systems; the filing script uses the standard library only)
+
+**4. Your course material** (PDF, Word, PowerPoint, Markdown, or plain text)
 
 ---
 
@@ -82,7 +84,7 @@ Open Obsidian → "Open folder as vault" → select the `student-ai-wiki` folder
    ```
 4. Follow the sign-in prompts on first launch, or run `codex login` beforehand.
 5. Codex reads `AGENTS.md` automatically and discovers the shared skills through `.agents/skills/`.
-6. Enter plain-text requests such as `ingest raw/MATH1001/L1.pdf`, `lint`, or `review MATH1001`. The Claude slash commands are not Codex commands.
+6. Enter plain-text requests such as `ingest ~/Downloads/L1.pdf`, `lint`, or `review MATH1001`. The Claude slash commands are not Codex commands.
 
 </details>
 
@@ -92,16 +94,33 @@ The skill and command discovery directories (`.claude/skills`, `.claude/commands
 
 ### Step 3: Ingest your first slide deck
 
-1. Create a folder under `raw/` named after your course (e.g. `raw/MATH1001/`)
-2. Copy your PDF into that folder
-3. In your AI tool, type:
+1. In your AI tool, type `ingest` and the location of the file, wherever it is:
    ```
-   ingest raw/MATH1001/L1.pdf
+   ingest ~/Downloads/L1.pdf
    ```
+2. The AI works out the course and the kind of file (it asks when unsure) and proposes where the copy goes:
+   ```
+   ~/Downloads/L1.pdf → raw/MATH1001/lectures/2026-03-02-lecture-limits.pdf
+   ```
+3. Confirm. The file is copied into `raw/`, and its original location, original name, and SHA-256 are recorded in `raw/.manifest.json`
 4. The AI generates concept pages, a course overview, and a source summary
 5. Switch to Obsidian and open `Home.md` to see your new notes
 
-> The same file is never ingested twice. The wiki remembers every file it has already read.
+> The same content is never filed twice, even under a different name. Your original file stays where it was.
+
+**How `raw/` is organized.** Every file is named `YYYY-MM-DD-{type}-{short-description}.{ext}` and sits in a folder for its kind, inside its course:
+
+| Type | Folder | What goes there |
+|---|---|---|
+| `lecture` | `lectures/` | Lecture slides, lecture transcripts |
+| `tutorial` | `tutorials/` | Tutorial and lab sheets, worked solutions |
+| `assignment` | `assignments/` | Assignment and project specs |
+| `exam` | `exams/` | Past exams, quizzes, sample papers |
+| `reading` | `readings/` | Textbook chapters, papers, articles |
+| `notes` | `notes/` | Your own notes |
+| `admin` | `admin/` | Course outline, syllabus, rubrics |
+
+You can name the course and type yourself: `ingest ~/Downloads/final-2024.pdf MATH1001 exam`.
 
 ---
 
@@ -109,7 +128,7 @@ The skill and command discovery directories (`.claude/skills`, `.claude/commands
 
 | Command | What it does |
 |---|---|
-| `ingest raw/XXXX/L1.pdf` | Turn a slide deck into notes, a course overview, and links to your other courses |
+| `ingest ~/Downloads/L1.pdf` | File a copy under `raw/` with its provenance, then turn it into notes, a course overview, and links to your other courses |
 | `lint` | Check the wiki for problems: broken links, pages nothing links to, concepts you have not reviewed lately, missing overviews, missing glossary terms |
 | `review XXXX` | The AI quizzes you until you can explain each concept simply |
 | `exam-prep XXXX` | Get practice questions on your weak concepts |
@@ -123,10 +142,9 @@ These are prompts entered inside either CLI, not shell commands. Claude Code add
 
 ### Adding a new course
 
-1. Create a folder under `raw/` for the course (e.g. `raw/PHYS1001/`)
-2. Put your slides in it
-3. Run `ingest`. The course overview page is created for you
-4. The `Home.md` dashboard updates by itself
+1. Run `ingest` on the first file of the course and give the course code (e.g. `ingest ~/Downloads/week1.pdf PHYS1001`)
+2. The `raw/PHYS1001/` folders and the course overview page are created for you
+3. The `Home.md` dashboard updates by itself
 
 ---
 
@@ -134,8 +152,12 @@ These are prompts entered inside either CLI, not shell commands. Claude Code add
 
 ```
 student-ai-wiki/
-├── raw/              ← Your slides (the AI only reads these)
-│   └── XXXX/         ← One folder per course
+├── raw/              ← Filed copies of your course material (append-only)
+│   ├── XXXX/         ← One folder per course
+│   │   └── lectures/ tutorials/ assignments/ exams/ readings/ notes/ admin/
+│   └── .manifest.json    ← Provenance: original path and name, SHA-256, pages produced
+├── scripts/
+│   └── file_source.py    ← Copies a file into raw/, renames it, records provenance
 ├── wiki/             ← AI-generated notes (auto-maintained)
 │   ├── concepts/         ← Concept pages (one per concept, with diagrams)
 │   ├── courses/          ← Course overviews (auto-created on ingest)

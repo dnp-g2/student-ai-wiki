@@ -18,4 +18,4 @@ tags: [meta, hot-cache]
 (None)
 
 ## Pending
-- Add the first course slides to raw/
+- Ingest the first course file: `ingest {path to the file}` files a copy under raw/{course}/{type}/ and records its provenance

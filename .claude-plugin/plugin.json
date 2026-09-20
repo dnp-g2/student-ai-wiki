@@ -1,6 +1,6 @@
 {
   "name": "student-ai-wiki",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Compile course materials into a persistent, interlinked Obsidian wiki. Karpathy LLM Wiki pattern with student features: Feynman review, exam prep, confidence decay, cross-course connections. English-only.",
   "author": {
     "name": "dnp-g2"

@@ -9,5 +9,10 @@
 Thumbs.db
 desktop.ini
 
-# Uncomment to keep PDFs out of the repo:
+# Uncomment to keep filed course material out of the repo (the manifest still tracks it):
 # raw/**/*.pdf
+# raw/**/*.docx
+# raw/**/*.pptx
+
+# Python
+__pycache__/

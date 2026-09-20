@@ -1,6 +1,6 @@
 # Student AI Wiki: Agent Instructions
 
-You maintain this student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
+You maintain this student knowledge wiki. Read `raw/`, write `wiki/`. `raw/` is append-only: sources enter through `scripts/file_source.py`, and a filed source is never edited, renamed, or deleted.
 
 ## Supported CLIs and Shared Instructions
 
@@ -29,12 +29,14 @@ Read the corresponding rules file before each operation (load on demand to save 
 3. Read at most 3–5 existing pages per ingest
 4. Make local edits; do not rewrite entire pages
 5. For batch operations, update index/hot/log once at the end
-6. Before ingest, check `raw/.manifest.json`; skip files with matching hashes
+6. Ingest starts by filing the source with `scripts/file_source.py`; it checks `raw/.manifest.json` and reports content that is already filed
 
 ## Architecture
 
 ```
-raw/{course}/    ← Read-only slides (NEVER modify)
+raw/{course}/{type}/  ← Filed sources, read-only: YYYY-MM-DD-{type}-{slug}.{ext}
+                        (lectures, tutorials, assignments, exams, readings, notes, admin)
+scripts/file_source.py ← Copies a source into raw/, renames it, records provenance
 wiki/
   hot.md         ← Context cache, read first
   index.md       ← Master catalog
@@ -42,12 +44,12 @@ wiki/
   sources/       ← Source pages
   courses/       ← Course overviews
   exam-prep/     ← Practice questions
-raw/.manifest.json  ← Dedup tracker
+raw/.manifest.json  ← Provenance + dedup tracker
 ```
 
 ## Commands
 
-- `ingest raw/COMP6713/L3.pdf`: Ingest course slides
+- `ingest ~/Downloads/L3.pdf`: File a source from any location into `raw/` (the destination is proposed first, then copied), and ingest it
 - `lint`: Health check + confidence decay
 - `review COMP9417`: Feynman review
 - `exam-prep COMP4337`: Generate questions for weak concepts

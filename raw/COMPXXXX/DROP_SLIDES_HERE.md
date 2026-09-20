@@ -1,16 +1,18 @@
-# 📂 Drop Course Slides Here
+# 📂 Filed Course Sources
 
-Drop your course PDFs, slides, and handouts into the corresponding course subfolder, then tell your CLI (Claude Code or Codex):
+Files in `raw/` are filed for you. Tell your CLI (Claude Code or Codex) where the file is:
 
 ```
-ingest raw/COMP6713/Lecture3-Attention.pdf
+ingest ~/Downloads/Lecture3-Attention.pdf
 ```
+
+The AI proposes a destination, and after your go-ahead `scripts/file_source.py` copies the file here as `raw/{COURSE}/{type-folder}/YYYY-MM-DD-{type}-{short-description}.{ext}`. The original location, original filename, and SHA-256 are recorded in `raw/.manifest.json`.
 
 ---
 
 ## Folder Guide
 
-| Folder | Course |
+| Course folder | Course |
 |--------|------|
 | `COMP4337/` | Network Security |
 | `COMP6713/` | Natural Language Processing (NLP) |
@@ -18,6 +20,16 @@ ingest raw/COMP6713/Lecture3-Attention.pdf
 | `INFS5730/` | Social Media Analytics |
 | `misc/` | Other materials |
 
+| Type folder | What goes there |
+|--------|------|
+| `lectures/` | Lecture slides, lecture transcripts |
+| `tutorials/` | Tutorial and lab sheets, worked solutions |
+| `assignments/` | Assignment and project specs |
+| `exams/` | Past exams, quizzes, sample papers |
+| `readings/` | Textbook chapters, papers, articles |
+| `notes/` | Your own notes |
+| `admin/` | Course outline, syllabus, rubrics |
+
 ---
 
-> The AI only reads the files in this folder.
+> `raw/` is append-only. A filed source is never edited, renamed, or deleted.

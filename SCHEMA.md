@@ -11,7 +11,7 @@ Canonical skills live in `skills/`. `.claude/skills` and `.agents/skills` are re
 
 | Layer | Contents | Location |
 |---|---|---|
-| Layer 1: Sources | Read-only slides | `raw/{course}/` |
+| Layer 1: Sources | Filed sources, append-only, with provenance in `raw/.manifest.json` | `raw/{course}/{type}/` |
 | Layer 2: Knowledge | AI-maintained wiki | `wiki/` |
 | Layer 3: Rules | Modular skills | `skills/*/SKILL.md` |
 
@@ -20,7 +20,7 @@ Canonical skills live in `skills/`. `.claude/skills` and `.agents/skills` are re
 | Skill | Trigger | Purpose |
 |---|---|---|
 | `wiki-core` | Always load first | Architecture + token budget rules + page formats |
-| `wiki-ingest` | "ingest" / drop in slides | Ingest slides, deduplicate, create concept pages |
+| `wiki-ingest` | "ingest" + a file location | File the source into `raw/` (`scripts/file_source.py`), deduplicate, create concept pages |
 | `wiki-lint` | "lint" / "check" | Health check + confidence decay |
 | `wiki-review` | "review" | Feynman questions + update confidence |
 | `exam-prep` | "exam-prep" | Generate questions for weak concepts |

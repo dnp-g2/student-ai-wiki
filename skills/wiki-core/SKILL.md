@@ -5,12 +5,12 @@ description: Core operating rules for the student knowledge wiki. This skill sho
 
 # Student AI Wiki: Core
 
-You maintain a student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
+You maintain a student knowledge wiki. Read `raw/`, write `wiki/`. `raw/` is append-only: sources enter through `scripts/file_source.py`, and a filed source is never edited, renamed, or deleted.
 
 ## Three-Layer Architecture
 
 ```
-raw/{course}/    ← Layer 1: Read-only slides
+raw/{course}/{type}/  ← Layer 1: Filed sources, read-only (lectures, tutorials, assignments, exams, readings, notes, admin)
 wiki/            ← Layer 2: Knowledge you maintain
   hot.md         ←   Context cache (≤500 words), READ FIRST
   index.md       ←   Master catalog
@@ -20,7 +20,7 @@ wiki/            ← Layer 2: Knowledge you maintain
   concepts/      ←   Concept pages (core)
   sources/       ←   Source pages
   exam-prep/     ←   Practice questions
-raw/.manifest.json  ← Dedup tracker
+raw/.manifest.json  ← Provenance + dedup tracker (original path, SHA-256, wiki pages produced)
 (These skills are Layer 3: operating rules)
 ```
 
@@ -66,7 +66,9 @@ File: `wiki/sources/{name}.md`
 tags: [source, {course-code}]
 course: {COURSE-CODE}
 ingested: YYYY-MM-DD
-source_file: raw/{course}/{filename}
+source_type: lecture|tutorial|assignment|exam|reading|notes|admin
+source_file: raw/{course}/{type-folder}/{YYYY-MM-DD}-{type}-{slug}.{ext}
+original_name: {filename as received}
 ---
 ```
 Sections: Key Takeaways (3–5) → Diagram Descriptions (note whether a Mermaid redraw is recommended; see wiki-diagram skill) → New Concepts → Updated Pages
@@ -85,7 +87,7 @@ After each operation, update `wiki/hot.md` (≤500 words): three most recent sou
 
 ## Hard Rules
 
-1. Never modify raw/
+1. `raw/` is append-only: file sources with `scripts/file_source.py`; never edit, rename, or delete a filed source
 2. One concept per page, Feynman style
 3. Cross-course connections provide the greatest value
 4. Mark uncertainty with confidence:low

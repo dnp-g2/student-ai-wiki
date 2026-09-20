@@ -24,3 +24,13 @@ tags: [meta, log]
 - Home.md now lists all five operations as plain-text requests that work in both CLIs.
 - Updated the setup guide wording in the source folder to name the supported CLIs, a one-time exception the user approved. Course materials and the manifest were left alone.
 - Nothing was ingested or reviewed.
+
+## 2026-09-20 · Provenance-Tracked Filing for Ingest
+- `ingest` now takes the location of a file anywhere on disk. `scripts/file_source.py` copies it to `raw/{course}/{type-folder}/YYYY-MM-DD-{type}-{slug}.{ext}`, and the destination is proposed to the user before the copy.
+- Defined seven source types, each with its own folder: lecture, tutorial, assignment, exam, reading, notes, admin.
+- `raw/.manifest.json` (version 2) records the original path, original filename, SHA-256, size, course, type, and date of every filed source, next to the wiki pages it produced. SHA-256 replaces the `md5sum` step, which macOS does not ship.
+- `raw/` is now described as append-only: filed sources are never edited, renamed, or deleted. Files already sitting in `raw/` are registered in place.
+- Source pages gain `source_type` and `original_name` frontmatter; ingest log entries gain a `Source:` provenance line.
+- Added `tests/test_file_source.py` for the filing script.
+- Rewrote the setup guide in the source folder to describe the new workflow, part of the change the user approved. The manifest holds no sources yet.
+- Nothing was ingested or reviewed.

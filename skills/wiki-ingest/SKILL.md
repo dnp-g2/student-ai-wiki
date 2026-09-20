@@ -1,18 +1,48 @@
 ---
 name: wiki-ingest
-description: Digest a course source file into the wiki. This skill should be used when the user says "ingest", "process this PDF/slide", or drops a course file into raw/ and wants it turned into wiki pages. Reads the source, deduplicates via manifest, creates source + concept pages, and finds cross-course connections.
+description: Digest a course source file into the wiki. This skill should be used when the user says "ingest", "process this PDF/slide", or gives the location of a course file and wants it turned into wiki pages. Files the source into raw/ with a provenance record, deduplicates via manifest, creates source + concept pages, and finds cross-course connections.
 ---
 
 # Wiki Ingest
 
-Turn a source file in `raw/` into wiki pages.
+File a source into `raw/` with its provenance, then turn it into wiki pages.
+
+## File the Source
+
+The user gives the location of a file anywhere on disk. `scripts/file_source.py` copies it into `raw/`, renames it, hashes it, and records where it came from. Files enter `raw/` only through this script.
+
+**Destination**: `raw/{COURSE}/{type-folder}/YYYY-MM-DD-{type}-{slug}.{ext}`
+
+| Type | Folder | What it is |
+|---|---|---|
+| `lecture` | `lectures/` | Lecture slides, lecture transcripts |
+| `tutorial` | `tutorials/` | Tutorial and lab sheets, worked solutions |
+| `assignment` | `assignments/` | Assignment and project specs |
+| `exam` | `exams/` | Past exams, quizzes, sample papers |
+| `reading` | `readings/` | Textbook chapters, papers, articles |
+| `notes` | `notes/` | The student's own notes |
+| `admin` | `admin/` | Course outline, syllabus, rubrics, announcements |
+
+Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` for material outside any course. The date is the content date (lecture date, exam session); the script falls back to a `YYYY-MM-DD` prefix in the filename, then to today. The slug is a short lowercase description; the script derives it from the original filename unless `--slug` is given.
+
+1. **Locate**: Infer course, type, date, and slug from the path, the filename, and a skim of the document. Ask the user when the course or the type is unclear
+2. **Propose**: Run the script with `--dry-run` and show the user `{original path} → {raw path}`. Wait for the go-ahead; a name in `raw/` is permanent
+   ```
+   python3 scripts/file_source.py "{path}" --course COMP6713 --type lecture [--date YYYY-MM-DD] [--slug text] --dry-run
+   ```
+3. **File**: Run the same command without `--dry-run` and read the JSON it prints:
+   - `filed`: copied and recorded; continue with `raw_path`
+   - `registered`: the file already lived in `raw/`; it was recorded in place; continue
+   - `duplicate` with `"ingested": true`: report "Already processed; use force to ingest again" and stop
+   - `duplicate` with `"ingested": false`: the content is filed and awaiting ingest; continue with the existing `raw_path`
+   - An "already exists" error: propose a different `--slug`; never overwrite
 
 ## Steps
 
-1. **Deduplicate**: Compute the file hash with `md5sum {file} | cut -d' ' -f1`. Check `raw/.manifest.json`; skip matching hashes and report "Already processed; use force to ingest again"
+1. **File the source** as described above (do not skip this step, and do not copy files into `raw/` by hand)
 2. **Read context**: Read `wiki/hot.md` (not the entire SCHEMA)
 3. **Locate existing pages**: Read `wiki/index.md` to find related concept pages
-4. **Read the source** and extract 3–5 key takeaways
+4. **Read the source** from its `raw/` copy and extract 3–5 key takeaways. `.pdf`, `.md`, and `.txt` read directly. `.docx` and `.pptx` are zip archives: extract the text first (for example `unzip -p "{file}" word/document.xml`, or a document-reading skill when the CLI has one)
 5. **Discuss with the user and confirm** (do not skip this step)
 6. **Create a source page** `wiki/sources/{name}.md`
 6.5. **Create/update the course overview** `wiki/courses/{COURSE}-overview.md`:
@@ -32,15 +62,25 @@ Turn a source file in `raw/` into wiki pages.
     - In `overview.md`, add new courses to the course list, update Cross-Course Connections for new links, and update Contradictions for new conflicts
     - Append new concepts to `wiki/glossary.md` using the columns Term, Domain, and Page (English term, domain, and wiki link)
     - Append a structured entry to `log.md` using the Log Entry Format below
+    - In `.manifest.json`, add the wiki fields to the entry the script created; leave its provenance fields unchanged
 
 ## Manifest Format
 
+`scripts/file_source.py` writes the provenance fields (`sha256` through `filed_at`) when it files the source. Step 11 adds the rest. An entry with `filed_at` and no `ingested_at` is filed and awaiting ingest.
+
 ```json
 {
+  "version": 2,
   "sources": {
-    "raw/COMP6713/L3.pdf": {
-      "hash": "abc123",
+    "raw/COMP6713/lectures/2026-06-01-lecture-attention.pdf": {
+      "sha256": "9f2c…",
+      "size_bytes": 1830211,
       "course": "COMP6713",
+      "type": "lecture",
+      "date": "2026-06-01",
+      "original_path": "/Users/me/Downloads/L3 (final).pdf",
+      "original_name": "L3 (final).pdf",
+      "filed_at": "2026-06-01T09:14:02Z",
       "ingested_at": "2026-06-01",
       "pages_created": ["wiki/sources/L3.md"],
       "concepts_created": ["Attention-Mechanism"],
@@ -54,7 +94,7 @@ Turn a source file in `raw/` into wiki pages.
 
 ## Batch Ingest
 
-Process multiple files individually, but update index/hot/log/manifest **only once after the entire batch**. Report progress after every 10 files.
+Propose all destinations in one table and get one go-ahead, then file each source with the script. Process the files individually, but update index/hot/log and the manifest's wiki fields **only once after the entire batch**. Report progress after every 10 files.
 
 ## Completion Report
 
@@ -106,6 +146,7 @@ Append to `wiki/connections-log.md`:
 Append to `wiki/log.md`:
 ```markdown
 ## {YYYY-MM-DD} · ingest: {source-file}
+- Source: `{original_path}` → `{raw_path}` ({size_bytes} bytes, sha256 {first 8 characters})
 - Created concepts: [[Concept-A]], [[Concept-B]]
 - Updated concepts: [[Concept-C]]
 - Cross-course connections: N (see connections-log.md)
