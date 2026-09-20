@@ -1,4 +1,4 @@
-"""Tests for scripts/tracker.py. Run: python3 -m unittest discover -s tests"""
+"""Tests for `student-wiki tracker`. Run: python3 -m unittest discover -s tests"""
 import json
 import os
 import subprocess
@@ -7,7 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "tracker.py"
+from _util import CLI
+
 TODAY = "2026-09-20"
 
 # The same item after a round trip through Obsidian's Properties UI and a Windows editor.
@@ -49,7 +50,7 @@ class TrackerCase(unittest.TestCase):
 
     def run_raw(self, *args, today=TODAY, env=None):
         return subprocess.run(
-            [sys.executable, str(SCRIPT), *args, "--root", str(self.root), "--today", today],
+            [*CLI, "tracker", *args, "--root", str(self.root), "--today", today],
             capture_output=True, text=True, encoding="utf-8", env=env,
         )
 

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS support covers the two newest releases (26 and 27). Add macos-27 here and in the
+        # smoke job once GitHub ships that runner label.
+        os: [ubuntu-latest, macos-26, windows-latest]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e .
+      - run: python -m unittest discover -s tests -v
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - name: Check the wheel carries the vault template
+        run: |
+          python -m zipfile -l dist/*.whl > wheel.txt
+          test "$(grep -c 'data/managed/skills/.*/SKILL.md' wheel.txt)" -eq 7
+          test "$(grep -c 'data/managed/commands/.*\.md' wheel.txt)" -eq 7
+          grep -q 'data/managed/dot_claude/settings.json' wheel.txt
+          grep -q 'data/seed/wiki/hot.md' wheel.txt
+          grep -q 'data/seed/dot_obsidian/app.json' wheel.txt
+          grep -q 'data/seed/dot_gitignore' wheel.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  smoke:
+    name: smoke (${{ matrix.os }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-26, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install dist/*.whl
+      - name: Create and exercise a vault with the installed command
+        run: |
+          student-wiki --version
+          student-wiki init "$RUNNER_TEMP/vault"
+          cd "$RUNNER_TEMP/vault/wiki"
+          student-wiki tracker add --type todo --title "Smoke" --due 2030-01-01
+          student-wiki tracker brief --days 9999 | grep Smoke
+          student-wiki upgrade --dry-run
+          student-wiki doctor

@@ -1,21 +1,14 @@
-# Obsidian
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
-.obsidian/cache/
-.trash/
-
 # OS
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Uncomment to keep filed course material out of the repo (the manifest still tracks it):
-# raw/**/*.pdf
-# raw/**/*.docx
-# raw/**/*.pptx
-
 # Python
 __pycache__/
+*.egg-info/
+.venv/
+build/
+dist/
 
-# Tracker calendar feed: generated from wiki/tracker/, personal, holds the gist id
-calendar/
+# Maintainer's test vault: student-wiki init ./sandbox
+sandbox/

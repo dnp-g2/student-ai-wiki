@@ -1,0 +1,2 @@
+# Templates ship with LF on every platform.
+* text=auto eol=lf
