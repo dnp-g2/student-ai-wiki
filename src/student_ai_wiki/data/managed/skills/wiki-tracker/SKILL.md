@@ -100,7 +100,7 @@ student-wiki tracker target COMP9417 75
 
 ## Briefing
 
-`student-wiki tracker brief` prints overdue items, the next 14 days, work to start now, milestones, exam readiness, the top-priority item, grades, and fields to confirm. Run it at session start (see AGENTS.md) and whenever the student asks what is due. Relay its lines as printed. When Exam readiness names weak concepts, offer the `review` and `exam-prep` runs it lists by their dates. `brief --course COMP9417` narrows it to one course.
+`student-wiki tracker brief` prints overdue items, the next 14 days, work to start now, milestones, exam readiness, the top-priority item, grades, and fields to confirm. `student-wiki start` prints this briefing at session start (see AGENTS.md); run `tracker brief` yourself whenever the student asks what is due. Relay its lines as printed. When Exam readiness names weak concepts, offer the `review` and `exam-prep` runs it lists by their dates. `brief --course COMP9417` narrows it to one course.
 
 ## Calendar
 

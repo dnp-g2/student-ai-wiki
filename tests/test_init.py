@@ -38,7 +38,7 @@ class InitTest(VaultCase):
         self.init()
         settings = json.loads((self.vault / ".claude" / "settings.json").read_text(encoding="utf-8"))
         command = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-        self.assertTrue(command.startswith("student-wiki tracker brief --hook"))
+        self.assertTrue(command.startswith("student-wiki start --hook"))
         self.assertTrue(command.endswith("|| true"))
 
     def test_dry_run_writes_nothing(self):

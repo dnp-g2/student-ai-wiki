@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "student-wiki tracker brief --hook --root \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || true",
+            "command": "student-wiki start --hook --root \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || true",
             "timeout": 10
           }
         ]

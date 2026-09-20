@@ -6,6 +6,8 @@ import unittest
 from _util import VaultCase, run_cli, tree_digest
 
 SKILL = ".claude/skills/wiki-core/SKILL.md"
+SETTINGS = ".claude/settings.json"
+LEGACY_HOOK = 'student-wiki tracker brief --hook --root "$CLAUDE_PROJECT_DIR" 2>/dev/null || true'
 
 
 class UpgradeTest(VaultCase):
@@ -13,6 +15,7 @@ class UpgradeTest(VaultCase):
         super().setUp()
         self.init()
         self.shipped = (self.vault / SKILL).read_bytes()
+        self.wanted_hook = self.state()["files"][SETTINGS]["hook_command"]
 
     def upgrade(self, *extra):
         return self.cli_json("upgrade", "--root", self.vault, "--json", *extra)
@@ -99,6 +102,8 @@ class UpgradeTest(VaultCase):
         self.assertEqual(merged["hooks"]["SessionStart"][0]["hooks"][0]["command"], wanted)
 
     def test_hook_edited_by_the_student_is_kept(self):
+        # Also the legacy-and-edited case: this command matches the old marker, and it differs
+        # from the one state.json recorded, so it belongs to the student either way.
         path = self.vault / ".claude" / "settings.json"
         settings = json.loads(path.read_text(encoding="utf-8"))
         settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = "student-wiki tracker brief --hook"
@@ -106,6 +111,46 @@ class UpgradeTest(VaultCase):
         self.assertEqual(self.upgrade()["settings"], "unchanged")
         kept = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(kept["hooks"]["SessionStart"][0]["hooks"][0]["command"], "student-wiki tracker brief --hook")
+
+    def make_legacy_hook(self):
+        """The vault as student-wiki 0.1.0 left it: the old hook on disk and in the state file."""
+        path = self.vault / ".claude" / "settings.json"
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = LEGACY_HOOK
+        path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        self.rewrite_state(lambda state: state["files"][SETTINGS].update(hook_command=LEGACY_HOOK))
+        self.rewrite_state(lambda state: state.update(tool_version="0.1.0"))
+        return path
+
+    def test_legacy_hook_is_rewritten_in_place(self):
+        path = self.make_legacy_hook()
+        self.assertEqual(self.upgrade()["settings"], "updated")
+        merged = json.loads(path.read_text(encoding="utf-8"))
+        groups = merged["hooks"]["SessionStart"]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0]["hooks"]), 1)
+        command = groups[0]["hooks"][0]["command"]
+        self.assertTrue(command.startswith("student-wiki start --hook"), command)
+        self.assertNotIn("tracker brief --hook", path.read_text(encoding="utf-8"))
+        self.assertEqual(self.state()["files"][SETTINGS]["hook_command"], command)
+        self.assertEqual(self.upgrade()["settings"], "unchanged")
+
+    def test_a_duplicate_of_our_own_hook_is_dropped(self):
+        path = self.make_legacy_hook()
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["hooks"]["SessionStart"].append(
+            {"matcher": "startup", "hooks": [{"type": "command", "command": self.wanted_hook, "timeout": 10}]})
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        self.upgrade()
+        merged = json.loads(path.read_text(encoding="utf-8"))
+        hooks = [hook for group in merged["hooks"]["SessionStart"] for hook in group["hooks"]]
+        self.assertEqual(len(hooks), 1)
+        self.assertTrue(hooks[0]["command"].startswith("student-wiki start --hook"))
+
+    def test_doctor_names_the_fix_for_a_legacy_hook(self):
+        self.make_legacy_hook()
+        checks = {c["check"]: c for c in json.loads(run_cli("doctor", "--json", "--root", self.vault).stdout)["checks"]}
+        self.assertIn("student-wiki start --hook", checks["session hook version"]["detail"])
 
     def test_student_content_survives(self):
         note = self.vault / "wiki" / "concepts" / "Entropy.md"

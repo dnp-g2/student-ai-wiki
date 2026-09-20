@@ -16,7 +16,7 @@ class CliTest(unittest.TestCase):
 
     def test_help_lists_every_command(self):
         out = run_cli("--help").stdout
-        for command in ("init", "upgrade", "doctor", "tracker", "file"):
+        for command in ("start", "init", "upgrade", "doctor", "tracker", "file"):
             self.assertIn(command, out)
 
     def test_subcommand_help_uses_the_cli_name(self):

@@ -27,7 +27,10 @@ from .vault import STATE_DIR, STATE_SCHEMA, find_root, is_managed, load_state, s
 
 SETTINGS_PATH = ".claude/settings.json"
 SETTINGS_TEMPLATE = "dot_claude/settings.json"
-HOOK_MARKER = "tracker brief --hook"
+# The command the current template installs, then every command a past release installed. Matching
+# all of them is how upgrade rewrites an old hook in place, so a vault never ends up with two.
+HOOK_MARKERS = ("start --hook", "tracker brief --hook")
+HOOK_MARKER = HOOK_MARKERS[0]
 SKIP_NAMES = ("__pycache__", ".DS_Store")
 
 
@@ -46,6 +49,10 @@ def now_utc() -> datetime:
 def content_hash(data: bytes) -> str:
     # Line endings are normalized so a git autocrlf checkout does not read as a local edit.
     return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+
+
+def hook_matches(command: str) -> bool:
+    return any(marker in command for marker in HOOK_MARKERS)
 
 
 def version_tuple(text: str) -> tuple:
@@ -122,17 +129,23 @@ def merge_settings(existing, template: dict, recorded_command=None):
         return None, "unparseable"
     before = json.dumps(settings, sort_keys=True)
     groups = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
-    found = False
-    for group in groups if isinstance(groups, list) else []:
-        for hook in group.get("hooks", []) if isinstance(group, dict) else []:
-            command = str(hook.get("command", "")) if isinstance(hook, dict) else ""
-            if HOOK_MARKER not in command:
-                continue
-            found = True
-            if recorded_command in (None, command):
-                hook["command"] = wanted_hook["command"]
-                hook["timeout"] = wanted_hook["timeout"]
-    if not found:
+    matched = [(group, hook)
+               for group in (groups if isinstance(groups, list) else [])
+               if isinstance(group, dict)
+               for hook in group.get("hooks", []) if isinstance(hook, dict)
+               and hook_matches(str(hook.get("command", "")))]
+    if matched:
+        group, hook = matched[0]
+        if recorded_command in (None, str(hook.get("command", ""))):
+            hook["command"] = wanted_hook["command"]
+            hook["timeout"] = wanted_hook["timeout"]
+        # A hook of ours that a past release left behind under a second name, or a copy the
+        # student pasted in, would run the same command twice per session.
+        for other_group, other_hook in matched[1:]:
+            if str(other_hook.get("command", "")) == wanted_hook["command"]:
+                other_group["hooks"].remove(other_hook)
+        groups[:] = [group for group in groups if group.get("hooks")]
+    else:
         if not isinstance(groups, list):
             return None, "unparseable"
         groups.append(wanted_group)
@@ -327,7 +340,8 @@ def render_upgrade(result: dict) -> str:
     if status == "up_to_date":
         return f"Your vault at {result['root']} is up to date (student-wiki {versions})."
     dry = status == "proposed"
-    changed = any(result.get(key) for key in ("created", "updated", "removed"))
+    changed = (any(result.get(key) for key in ("created", "updated", "removed"))
+               or result.get("settings") in ("created", "updated"))
     verb = "Would upgrade" if dry else ("Upgraded" if changed else "Checked")
     lines = [f"{verb} your vault at {result['root']}  (student-wiki {versions})"]
     for key, verb in (("created", "added"), ("updated", "updated"), ("removed", "removed")):
@@ -465,9 +479,15 @@ def cmd_doctor(args) -> None:
             check(f"{folder}/ folder", (root / folder).is_dir(), "present" if (root / folder).is_dir() else "missing")
 
         settings = root / SETTINGS_PATH
-        hooked = settings.is_file() and HOOK_MARKER in settings.read_text(encoding="utf-8-sig", errors="replace")
+        text = settings.read_text(encoding="utf-8-sig", errors="replace") if settings.is_file() else ""
+        hooked = hook_matches(text)
         check("session hook", hooked, "present in .claude/settings.json" if hooked else
               "absent; Claude Code will skip the session briefing. Run: student-wiki upgrade", problem=False)
+        if hooked and HOOK_MARKER not in text:
+            check("session hook version", False,
+                  "your hook still runs the older tracker brief command, so the starter steps and "
+                  "update notices are missing from it. Set the command in .claude/settings.json to "
+                  "student-wiki start --hook, or run: student-wiki upgrade --force", problem=False)
 
         plugins = root / ".obsidian" / "community-plugins.json"
         try:
