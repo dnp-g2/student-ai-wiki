@@ -20,6 +20,8 @@ python3 -m unittest discover -s tests -v
 
 The tests are black-box: each one runs `python -m student_ai_wiki ...` against a temporary vault. They run from a bare checkout with no install. Every behavior change needs a test, and every command that writes must honor `--dry-run`.
 
+The suite stays offline. `tests/_util.py` sets `STUDENT_WIKI_NO_UPDATE_CHECK=1` for every test process and every child it spawns. A test that needs the update check active calls `VaultCase.update_env()`, which writes a cache file and points `STUDENT_WIKI_UPDATE_CACHE` at it; an entry inside its 24 hour window is served without a request. `STUDENT_WIKI_UPDATE_URL` redirects the fetch, and `tests/test_update.py` uses it with a `file://` URL to exercise the one path that opens a connection.
+
 ## Layout
 
 | Path | Contents |
@@ -27,6 +29,8 @@ The tests are black-box: each one runs `python -m student_ai_wiki ...` against a
 | `src/student_ai_wiki/cli.py` | The `student-wiki` dispatcher |
 | `src/student_ai_wiki/vault.py` | Vault root resolution and the state file |
 | `src/student_ai_wiki/scaffold.py` | `init`, `upgrade`, `doctor` |
+| `src/student_ai_wiki/start.py` | `student-wiki start`, the session opener both AI tools run |
+| `src/student_ai_wiki/update.py` | The daily PyPI check and the notice it prints |
 | `src/student_ai_wiki/tracker.py`, `file_source.py` | `student-wiki tracker` and `student-wiki file` |
 | `src/student_ai_wiki/data/managed/` | Tool-owned vault files: `AGENTS.md`, `SCHEMA.md`, skills, slash commands, the settings hook. `upgrade` refreshes them |
 | `src/student_ai_wiki/data/seed/` | Student-owned starter files: `wiki/`, `raw/`, `Home.md`, `.obsidian/`, `.gitignore`. `init` writes them once |

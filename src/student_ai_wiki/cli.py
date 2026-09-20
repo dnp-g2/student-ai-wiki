@@ -1,8 +1,9 @@
 """
 cli.py - the `student-wiki` command.
 
-  student-wiki init [DIR] [--dry-run]
-  student-wiki upgrade [--root DIR] [--force] [--dry-run]
+  student-wiki start [--root DIR] [--compact] [--hook] [--json]
+  student-wiki init [DIR] [--dry-run] [--json]
+  student-wiki upgrade [--root DIR] [--force] [--dry-run] [--json]
   student-wiki doctor [--root DIR] [--json]
   student-wiki tracker <command> ...     deadlines, grades, calendar (see: tracker --help)
   student-wiki file <path> ...           file a course source into raw/ (see: file --help)
@@ -25,16 +26,27 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("-V", "--version", action="version", version=f"student-wiki {__version__}")
-    commands = parser.add_subparsers(dest="command", required=True, metavar="{init,upgrade,doctor,tracker,file}")
+    commands = parser.add_subparsers(dest="command", required=True,
+                                     metavar="{start,init,upgrade,doctor,tracker,file}")
+
+    start = commands.add_parser("start", help="what to say in your AI tool, plus what is due")
+    start.add_argument("--root", help=ROOT_HELP)
+    start.add_argument("--compact", action="store_true",
+                       help="session mode: the starter list only on the first session in the vault")
+    start.add_argument("--hook", action="store_true",
+                       help="session hook mode: compact, reads the cached update answer, always exits 0")
+    start.add_argument("--json", action="store_true", help="print one JSON object")
 
     init = commands.add_parser("init", help="create a vault")
     init.add_argument("dir", nargs="?", default=".", help="vault folder (default: the current directory)")
     init.add_argument("--dry-run", action="store_true", help="print the proposal and write nothing")
+    init.add_argument("--json", action="store_true", help="print one JSON object")
 
     upgrade = commands.add_parser("upgrade", help="refresh the tool-owned files in a vault")
     upgrade.add_argument("--root", help=ROOT_HELP)
     upgrade.add_argument("--force", action="store_true", help="back up locally modified files, then overwrite them")
     upgrade.add_argument("--dry-run", action="store_true", help="print the proposal and write nothing")
+    upgrade.add_argument("--json", action="store_true", help="print one JSON object")
 
     doctor = commands.add_parser("doctor", help="check the install and the vault")
     doctor.add_argument("--root", help=ROOT_HELP)
@@ -50,6 +62,9 @@ def dispatch(argv) -> None:
         from . import file_source
         return file_source.main(argv[1:])
     args = build_parser().parse_args(argv)
+    if args.command == "start":
+        from . import start
+        return start.cmd_start(args)
     from . import scaffold
     {"init": scaffold.cmd_init, "upgrade": scaffold.cmd_upgrade, "doctor": scaffold.cmd_doctor}[args.command](args)
 

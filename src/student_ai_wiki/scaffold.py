@@ -15,18 +15,22 @@ is how upgrade tells an untouched file from one the student edited.
 """
 import hashlib
 import json
+import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 
-from . import __version__
+from . import __version__, update
 from .vault import STATE_DIR, STATE_SCHEMA, find_root, is_managed, load_state, save_state, write_bytes_atomic
 
 SETTINGS_PATH = ".claude/settings.json"
 SETTINGS_TEMPLATE = "dot_claude/settings.json"
-HOOK_MARKER = "tracker brief --hook"
+# The command the current template installs, then every command a past release installed. Matching
+# all of them is how upgrade rewrites an old hook in place, so a vault never ends up with two.
+HOOK_MARKERS = ("start --hook", "tracker brief --hook")
+HOOK_MARKER = HOOK_MARKERS[0]
 SKIP_NAMES = ("__pycache__", ".DS_Store")
 
 
@@ -45,6 +49,10 @@ def now_utc() -> datetime:
 def content_hash(data: bytes) -> str:
     # Line endings are normalized so a git autocrlf checkout does not read as a local edit.
     return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+
+
+def hook_matches(command: str) -> bool:
+    return any(marker in command for marker in HOOK_MARKERS)
 
 
 def version_tuple(text: str) -> tuple:
@@ -121,17 +129,23 @@ def merge_settings(existing, template: dict, recorded_command=None):
         return None, "unparseable"
     before = json.dumps(settings, sort_keys=True)
     groups = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
-    found = False
-    for group in groups if isinstance(groups, list) else []:
-        for hook in group.get("hooks", []) if isinstance(group, dict) else []:
-            command = str(hook.get("command", "")) if isinstance(hook, dict) else ""
-            if HOOK_MARKER not in command:
-                continue
-            found = True
-            if recorded_command in (None, command):
-                hook["command"] = wanted_hook["command"]
-                hook["timeout"] = wanted_hook["timeout"]
-    if not found:
+    matched = [(group, hook)
+               for group in (groups if isinstance(groups, list) else [])
+               if isinstance(group, dict)
+               for hook in group.get("hooks", []) if isinstance(hook, dict)
+               and hook_matches(str(hook.get("command", "")))]
+    if matched:
+        group, hook = matched[0]
+        if recorded_command in (None, str(hook.get("command", ""))):
+            hook["command"] = wanted_hook["command"]
+            hook["timeout"] = wanted_hook["timeout"]
+        # A hook of ours that a past release left behind under a second name, or a copy the
+        # student pasted in, would run the same command twice per session.
+        for other_group, other_hook in matched[1:]:
+            if str(other_hook.get("command", "")) == wanted_hook["command"]:
+                other_group["hooks"].remove(other_hook)
+        groups[:] = [group for group in groups if group.get("hooks")]
+    else:
         if not isinstance(groups, list):
             return None, "unparseable"
         groups.append(wanted_group)
@@ -157,6 +171,7 @@ class Sync:
             "backed_up", "seed_created", "seed_kept")}
         self.report["unchanged"] = 0
         self.settings = "unchanged"
+        self.legacy_hook = False
 
     @property
     def backup_dir(self) -> Path:
@@ -239,6 +254,10 @@ class Sync:
         text, self.settings = merge_settings(existing, settings_template(), recorded)
         if text is not None:
             self.write(SETTINGS_PATH, text.encode("utf-8"))
+        # A hook the student edited is left as they left it, which can leave them on a command
+        # from an older release. They get told once, here, where the fix is one line away.
+        final = text if text is not None else (existing or "")
+        self.legacy_hook = hook_matches(final) and HOOK_MARKER not in final
         hook = settings_template()["hooks"]["SessionStart"][0]["hooks"][0]["command"]
         self.files[SETTINGS_PATH] = {"kind": "merged", "hook_command": hook}
 
@@ -260,9 +279,113 @@ class Sync:
     def summary(self) -> dict:
         out = {key: value for key, value in self.report.items() if value}
         out["settings"] = self.settings
+        if self.legacy_hook:
+            out["legacy_hook"] = True
         if self.report["backed_up"]:
             out["backed_up_to"] = self.backup_dir.relative_to(self.root).as_posix()
         return out
+
+
+# ---------- human-readable output ----------
+
+# Start lines are printed in this order.
+AI_TOOLS = ("codex", "claude")
+# Both CLIs take a first prompt as their positional argument, so the student never meets a blank
+# prompt. Keep this a word neither CLI uses as a subcommand.
+START_PROMPT = "start"
+
+
+def shell_path(path: Path) -> str:
+    """The path as a student would type it: ~/... under the home folder, quoted when it needs it."""
+    home = Path.home().resolve()
+    if home in path.parents:
+        rel = path.relative_to(home).as_posix()
+        if shlex.quote(rel) == rel:
+            return "~/" + rel
+    return shlex.quote(str(path))
+
+
+def start_commands(root: Path, prompt: str = START_PROMPT) -> list:
+    """A program cannot change the directory of the shell that ran it, so init prints lines to paste:
+    one per installed AI tool, or one per supported tool when none is installed yet. The quoted word
+    at the end is sent as the first message, which is what makes the tool open with the steps."""
+    tools = [tool for tool in AI_TOOLS if shutil.which(tool)] or AI_TOOLS
+    return [f'cd {shell_path(root)} && {tool} "{prompt}"' for tool in tools]
+
+
+def count(items, noun: str) -> str:
+    return f"{len(items)} {noun}{'' if len(items) == 1 else 's'}"
+
+
+def bullet_list(title: str, items) -> list:
+    return [title, *[f"    {item}" for item in items]] if items else []
+
+
+def legacy_hook_lines(result: dict) -> list:
+    if not result.get("legacy_hook"):
+        return []
+    return ["  Your session hook was left as you edited it, and it runs the older tracker brief command,",
+            "  so you miss the starter steps and the update notices. To get them, set that command in",
+            "  .claude/settings.json to: student-wiki start --hook"]
+
+
+def with_notice(lines: list, result: dict) -> str:
+    notice = update.notice(result.get("update"))
+    return "\n".join(lines + ([""] + notice if notice else []))
+
+
+def render_init(result: dict) -> str:
+    dry = result["status"] == "proposed"
+    written = result.get("created", []) + result.get("seed_created", [])
+    lines = [f"{'Would create' if dry else 'Created'} your vault at {result['root']}  (student-wiki {result['version']})",
+             f"  {count(written, 'file')}: the AI rules (AGENTS.md, skills, slash commands), a starter wiki/ and raw/, "
+             "Home.md and the Obsidian settings"]
+    kept = result.get("seed_kept", []) + result.get("skipped_modified", [])
+    lines += bullet_list(f"  Already there and left as they were ({len(kept)}):", kept)
+    if dry:
+        return with_notice(lines + ["", "Nothing was written. Run the same command without --dry-run to create it."],
+                           result)
+    commands = result["start_commands"]
+    lines += ["", "Next:",
+              "  1. Open the folder in Obsidian (Open folder as vault), then enable the Dataview community plugin.",
+              f"  2. Start your AI tool inside the vault. Paste {'this line' if len(commands) == 1 else 'one of these lines'}:",
+              "", *[f"       {command}" for command in commands], ""]
+    if not any(shutil.which(tool) for tool in AI_TOOLS):
+        lines += ["     Neither codex nor claude is installed yet. Install one first:",
+                  "       Codex CLI    https://developers.openai.com/codex/cli",
+                  "       Claude Code  https://docs.anthropic.com/claude-code", ""]
+    lines += ["     The quoted word is your first message, so the tool opens with the steps on screen.",
+              "  3. Then say:  ingest ~/Downloads/<your first lecture file>"]
+    return with_notice(lines, result)
+
+
+def render_upgrade(result: dict) -> str:
+    status = result["status"]
+    versions = result["to_version"] if result["from_version"] == result["to_version"] \
+        else f"{result['from_version']} -> {result['to_version']}"
+    if status == "up_to_date":
+        head = f"Your vault at {result['root']} is up to date (student-wiki {versions})."
+        return with_notice([head] + legacy_hook_lines(result), result)
+    dry = status == "proposed"
+    changed = (any(result.get(key) for key in ("created", "updated", "removed"))
+               or result.get("settings") in ("created", "updated"))
+    verb = "Would upgrade" if dry else ("Upgraded" if changed else "Checked")
+    lines = [f"{verb} your vault at {result['root']}  (student-wiki {versions})"]
+    for key, verb in (("created", "added"), ("updated", "updated"), ("removed", "removed")):
+        lines += bullet_list(f"  {count(result.get(key, []), 'file')} {verb}:", result.get(key, []))
+    if result.get("settings") in ("created", "updated"):
+        lines.append("  Session hook in .claude/settings.json refreshed; your other settings were kept.")
+    lines += legacy_hook_lines(result)
+    if result.get("backed_up_to"):
+        lines.append(f"  Your edited versions {'would be' if dry else 'were'} saved under {result['backed_up_to']}/")
+    skipped = result.get("skipped_modified", []) + result.get("orphaned_modified", [])
+    lines += bullet_list(f"  Left alone because you edited them ({len(skipped)}):", skipped)
+    if skipped:
+        lines.append("  To install the new versions and keep a backup of yours: student-wiki upgrade --force")
+    lines.append("  Your wiki/, raw/, Home.md and .obsidian/ were not touched.")
+    if dry:
+        lines += ["", "Nothing was written. Run the same command without --dry-run to apply it."]
+    return with_notice(lines, result)
 
 
 # ---------- init ----------
@@ -283,12 +406,17 @@ def cmd_init(args) -> None:
 
     result = {"status": "proposed" if args.dry_run else "created", "root": str(root), "version": __version__}
     result.update(sync.summary())
+    result["start_commands"] = start_commands(root)
     result["next_steps"] = [
         f"Open {root} in Obsidian (Open folder as vault) and enable the Dataview community plugin",
-        f"cd {root} and start claude or codex",
+        "Start your AI tool inside the vault: " + "   or   ".join(result["start_commands"]),
         "Say: ingest ~/Downloads/<your first lecture file>",
     ]
-    emit(result)
+    result["update"] = update.check()
+    if args.json:
+        emit(result)
+    else:
+        print(render_init(result))
 
 
 # ---------- upgrade ----------
@@ -333,8 +461,12 @@ def cmd_upgrade(args) -> None:
         result["hint"] = ("The files listed as modified were edited in this vault and were left alone. "
                           "student-wiki upgrade --force backs them up under .student-wiki/backups/ "
                           "and installs the new versions.")
+    result["update"] = update.check()
     sync.save(state)
-    emit(result)
+    if args.json:
+        emit(result)
+    else:
+        print(render_upgrade(result))
 
 
 # ---------- doctor ----------
@@ -377,9 +509,17 @@ def cmd_doctor(args) -> None:
             check(f"{folder}/ folder", (root / folder).is_dir(), "present" if (root / folder).is_dir() else "missing")
 
         settings = root / SETTINGS_PATH
-        hooked = settings.is_file() and HOOK_MARKER in settings.read_text(encoding="utf-8-sig", errors="replace")
+        text = settings.read_text(encoding="utf-8-sig", errors="replace") if settings.is_file() else ""
+        hooked = hook_matches(text)
         check("session hook", hooked, "present in .claude/settings.json" if hooked else
               "absent; Claude Code will skip the session briefing. Run: student-wiki upgrade", problem=False)
+        if hooked and HOOK_MARKER not in text:
+            # upgrade never overwrites a hook the student edited, not even with --force, so the
+            # only fix is theirs to make.
+            check("session hook version", False,
+                  "your hook still runs the older tracker brief command, so the starter steps and "
+                  "update notices are missing from it. Set that command in .claude/settings.json "
+                  "to: student-wiki start --hook", problem=False)
 
         plugins = root / ".obsidian" / "community-plugins.json"
         try:
@@ -406,9 +546,22 @@ def cmd_doctor(args) -> None:
     gh = shutil.which("gh")
     check("gh CLI", gh, gh or "optional; needed only for: student-wiki tracker ics --publish-gist", problem=False)
 
+    status = update.check()
+    if status["source"] == "disabled":
+        detail = f"the check is off ({update.ENV_DISABLE} is set)"
+    elif status["latest"] is None:
+        detail = "could not reach pypi.org, which is fine when you are offline"
+    elif status["available"]:
+        detail = (f"{status['latest']} is out; run: pipx upgrade student-ai-wiki "
+                  "(with uv: uv tool upgrade student-ai-wiki), then student-wiki upgrade")
+    else:
+        detail = f"{__version__} is the newest release"
+    check("latest release", not status["available"], detail, problem=False)
+
     problems = [item for item in checks if item["level"] == "problem"]
     if args.json:
-        emit({"status": "problems" if problems else "healthy", "version": __version__, "checks": checks})
+        emit({"status": "problems" if problems else "healthy", "version": __version__,
+              "update": status, "checks": checks})
     else:
         print(f"student-wiki {__version__}")
         marks = {"ok": "ok  ", "info": "note", "problem": "FAIL"}

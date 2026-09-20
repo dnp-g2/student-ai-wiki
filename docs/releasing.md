@@ -8,6 +8,7 @@ Releases are automated by [release-please](https://github.com/googleapis/release
 2. When you want to ship, review and merge the release PR.
 3. The same workflow then tags `vX.Y.Z`, creates the GitHub release, builds the wheel and sdist, publishes them to PyPI through trusted publishing, and attaches them to the GitHub release.
 4. Check: `pipx install student-ai-wiki==X.Y.Z` in a clean environment, then `student-wiki --version`.
+5. Once PyPI shows the new release, check the update notice from a machine still on the old version: `student-wiki doctor` names it under `latest release`. The answer is cached for a day, so delete the cache file (see **Update notices** in the README) to check again.
 
 `__version__` is the single source of truth. Hatchling reads it at build time; `student-wiki --version` and the vault state file read it at run time. Never edit it by hand.
 

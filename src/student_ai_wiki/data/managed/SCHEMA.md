@@ -29,7 +29,9 @@ The `student-wiki` tool is installed once per machine (`pipx install student-ai-
 
 ## Requests and Claude Slash Commands
 
-Both CLIs accept plain-text requests: `ingest [file]`, `lint`, `review [course]`, `exam-prep [course]`, `diagram [concept]`, `add deadline [details]`, `due`, `grades [course]`, and `calendar`.
+Both CLIs accept plain-text requests: `start` (or `help`), `ingest [file]`, `lint`, `review [course]`, `exam-prep [course]`, `diagram [concept]`, `add deadline [details]`, `due`, `grades [course]`, and `calendar`.
+
+`student-wiki start` is the session opener. It prints the deadline briefing, the numbered list of things a student can say on the first session in a vault, and an update notice when a newer release is on PyPI. Claude Code runs it through the SessionStart hook; Codex runs it from `AGENTS.md`. `.student-wiki/greeted` records that the list was shown, and `help` brings it back.
 
 Claude Code additionally exposes `/ingest [file]`, `/lint`, `/review [course]`, `/exam-prep [course]`, `/diagram [concept]`, `/tracker [request]`, and `/due [course]`. These slash commands are not portable to Codex; use the plain-text requests there.
 

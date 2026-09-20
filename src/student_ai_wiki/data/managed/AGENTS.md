@@ -25,9 +25,16 @@ Read the corresponding skill before each operation (load on demand to save token
 | diagram | `wiki-diagram` |
 | tracker (deadlines, exams, to-dos, grades, calendar) | `wiki-tracker` |
 
+## Starting a Session, `start` and `help`
+
+- `start` and `help` are the same request: run `student-wiki start` and open your reply with its output. Keep the numbered list as printed, then add one sentence naming the best next step for this student.
+- The first message from a new student is `start`, because `student-wiki init` printed `cd <vault> && codex "start"` for them to paste. Claude Code injects the same output through the hook in `.claude/settings.json` before your first turn; when you can see it already, relay it and leave the command unrun. Codex has no hook, so run it yourself.
+- The numbered list prints on the first session in a vault and then stops, which keeps later sessions short. It comes back whenever the student says `help`, so point them at that word once and leave it there.
+- When the output names a newer `student-ai-wiki` release, pass on both steps: `pipx upgrade student-ai-wiki` (with uv: `uv tool upgrade student-ai-wiki`) in a terminal, then `student-wiki upgrade` inside the vault to refresh these rules.
+
 ## Token Budget Rules (Highest Priority)
 
-1. **Read only `wiki/hot.md` first at each session start** (≤500 words). Then run `student-wiki tracker brief`, unless a tracker brief is already in context, and open your first reply with its overdue and due-soon lines (at most 5 lines)
+1. **Read only `wiki/hot.md` first at each session start** (≤500 words). Then run `student-wiki start --compact`, unless its output is already in context, and open your first reply with its lines in the order it printed them (at most 6 lines of briefing)
 2. Read `wiki/index.md` only if more context is needed
 3. Read at most 3–5 existing pages per ingest
 4. Make local edits; do not rewrite entire pages
@@ -39,6 +46,7 @@ Read the corresponding skill before each operation (load on demand to save token
 ```
 raw/{course}/{type}/  ← Filed sources, read-only: YYYY-MM-DD-{type}-{slug}.{ext}
                         (lectures, tutorials, assignments, exams, readings, notes, admin)
+student-wiki start    ← Command: the session opener; what to say, what is due, update notices
 student-wiki file     ← Command: copies a source into raw/, renames it, records provenance
 student-wiki tracker  ← Command: deadlines, priorities, grades, calendar feed; owns every date calculation
 wiki/
@@ -54,6 +62,7 @@ raw/.manifest.json  ← Provenance + dedup tracker
 
 ## Commands
 
+- `start` or `help`: Run `student-wiki start` and relay the starter steps it prints
 - `ingest ~/Downloads/L3.pdf`: File a source from any location into `raw/` (the destination is proposed first, then copied), and ingest it
 - `lint`: Health check + confidence decay
 - `review COMP9417`: Feynman review

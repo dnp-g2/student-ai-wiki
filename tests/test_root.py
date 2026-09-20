@@ -28,7 +28,7 @@ class RootTest(VaultCase):
     def test_env_beats_walk_up_and_flag_beats_env(self):
         self.init()
         other = self.base / "other"
-        self.cli_json("init", other)
+        self.cli_json("init", other, "--json")
         self.add(self.vault, "First")
         self.add(other, "Second")
         env = dict(os.environ, STUDENT_WIKI_ROOT=str(other))

@@ -59,16 +59,22 @@ If the shell cannot find `student-wiki`, run `pipx ensurepath` (or `uv tool upda
 student-wiki init ~/StudyVault
 ```
 
+`init` finishes by printing the next steps, including a line you can paste that starts your AI tool inside the vault with its first question already asked.
+
 **2. Open it in Obsidian.** Open folder as vault → select `~/StudyVault`. Then Settings → Community plugins → Browse → `Dataview` → Install and enable.
 
 **3. Start your AI tool inside the vault.**
 
 ```bash
 cd ~/StudyVault
-claude        # or: codex
+codex "start"         # or: claude "start"
 ```
 
+The quoted word is your first message, so the tool opens with a numbered list of everything you can say. That list shows on your first session and then stays out of the way; say `help` whenever you want it back.
+
 Claude Code asks you to trust the project the first time, because the vault has a session hook that shows your deadlines. Both CLIs read `AGENTS.md` and find the skills by themselves. Claude Code also gets slash commands such as `/ingest` and `/due`; Codex uses the plain-text requests.
+
+On Windows, paste these lines in Git Bash, the shell both CLIs use.
 
 **4. Ingest your first file**, as described in the next section.
 
@@ -84,11 +90,25 @@ cd ~/StudyVault
 student-wiki upgrade
 ```
 
-The first command updates the tool. The second refreshes the AI rules inside your vault (`AGENTS.md`, `SCHEMA.md`, the skills, the slash commands, the session hook). It never touches `wiki/`, `raw/`, `Home.md`, `.obsidian/` or your tracker settings. If you edited one of the rule files yourself, `upgrade` leaves that file alone and tells you; `student-wiki upgrade --force` saves your version under `.student-wiki/backups/` and installs the new one. Add `--dry-run` to either command to preview it.
+The first command updates the tool. The second refreshes the AI rules inside your vault (`AGENTS.md`, `SCHEMA.md`, the skills, the slash commands, the session hook). It never touches `wiki/`, `raw/`, `Home.md`, `.obsidian/` or your tracker settings. If you edited one of the rule files yourself, `upgrade` leaves that file alone and tells you; `student-wiki upgrade --force` saves your version under `.student-wiki/backups/` and installs the new one. Add `--dry-run` to either command to preview it. `init` and `upgrade` print a short summary; add `--json` for the full machine-readable report.
 
 `student-wiki doctor` checks the install and the vault and tells you what to fix.
 
 Release notes are in [CHANGELOG.md](CHANGELOG.md).
+
+### Update notices
+
+`student-wiki` checks once a day whether a newer release is on PyPI and tells you at the start of an AI session, and when you run `init`, `upgrade` or `doctor`. It is one request to `https://pypi.org/pypi/student-ai-wiki/json` with a short timeout, it sends nothing about you or your vault, and it stays silent whenever it fails, so being offline changes nothing. A session hook reads the last answer and opens no connection, so starting a session is never delayed.
+
+The answer is kept in one small file, the only thing this tool writes outside your vault:
+
+| System | File |
+|---|---|
+| macOS | `~/Library/Caches/student-ai-wiki/update-check.json` |
+| Linux | `$XDG_CACHE_HOME/student-ai-wiki/update-check.json`, or `~/.cache/...` |
+| Windows | `%LOCALAPPDATA%\student-ai-wiki\update-check.json` |
+
+To turn the check off, set `STUDENT_WIKI_NO_UPDATE_CHECK=1` in your environment.
 
 ---
 
@@ -138,6 +158,7 @@ You can name the course and type yourself: `ingest ~/Downloads/final-2024.pdf MA
 
 | Command | What it does |
 |---|---|
+| `help` (or `start`) | The list of everything you can say, plus what is due and whether a newer release is out |
 | `ingest ~/Downloads/L1.pdf` | File a copy under `raw/` with its provenance, then turn it into notes, a course overview, and links to your other courses |
 | `lint` | Check the wiki for problems: broken links, pages nothing links to, concepts you have not reviewed lately, missing overviews, missing glossary terms |
 | `review XXXX` | The AI quizzes you until you can explain each concept simply |
@@ -178,7 +199,7 @@ Run `calendar` again after deadlines change and import the file again; existing 
 
 Set your timezone and term dates once in `wiki/tracker/_config.md`.
 
-Claude Code shows the briefing through a session hook in `.claude/settings.json` and asks you to trust it the first time you open the project. Codex runs the same briefing from `AGENTS.md`.
+Claude Code shows the briefing through a session hook in `.claude/settings.json` and asks you to trust it the first time you open the project. Codex runs the same briefing from `AGENTS.md`. Both run `student-wiki start`, which also carries the starter steps on your first session and any update notice.
 
 ---
 
@@ -220,10 +241,12 @@ StudyVault/
 ├── .claude/commands/ ← Claude slash commands
 ├── .claude/settings.json ← Session hook that shows your deadlines
 ├── .agents/skills/   ← The same operation rules for Codex
-└── .student-wiki/    ← Tool version that last wrote the vault, and upgrade backups
+└── .student-wiki/    ← Tool version that last wrote the vault, upgrade backups, and `greeted`
 ```
 
-The AI runs two commands for you: `student-wiki file` copies a source into `raw/` and records its provenance, and `student-wiki tracker` owns every date, priority and grade calculation. Both work from anywhere inside the vault, and you can run them yourself (`student-wiki tracker --help`).
+Everything the tool keeps about you lives in that folder, with one exception: the daily update check writes its answer to a cache file outside the vault, described under [Update notices](#update-notices).
+
+The AI runs three commands for you: `student-wiki start` opens a session with your deadlines, `student-wiki file` copies a source into `raw/` and records its provenance, and `student-wiki tracker` owns every date, priority and grade calculation. All three work from anywhere inside the vault, and you can run them yourself (`student-wiki tracker --help`).
 
 ---
 
@@ -233,12 +256,15 @@ The AI runs two commands for you: `student-wiki file` copies a source into `raw/
 |---|---|
 | `student-wiki: command not found` | Run `pipx ensurepath` (or `uv tool update-shell`), then open a new terminal |
 | The AI says it cannot run `student-wiki` | Same fix; then restart `claude` or `codex` from the new terminal |
+| The AI does not show the starter steps | Say `help` inside the CLI, then run `student-wiki doctor` inside the vault |
+| You upgraded the tool and the AI rules look old | Run `student-wiki upgrade` inside the vault |
+| You want no update notices | Set `STUDENT_WIKI_NO_UPDATE_CHECK=1` in your environment |
 | No deadline briefing when Claude Code starts | Accept the project trust prompt, then run `student-wiki doctor` inside the vault |
 | Timed deadlines show in the wrong timezone on Windows | Set `timezone` in `wiki/tracker/_config.md`; `student-wiki doctor` reports whether the timezone data loads |
 | `upgrade` reports `conflicts` | You edited a rule file. Keep your edit, or run `student-wiki upgrade --force` (your version is saved under `.student-wiki/backups/`) |
 | The Home dashboard is empty | Enable the Dataview plugin in Obsidian |
 | Publishing the calendar fails | `calendar` publishing needs the [GitHub CLI](https://cli.github.com) signed in with the `gist` scope |
-| PowerShell is your Claude Code shell | The session hook is written for a POSIX shell (Git Bash, the Claude Code default on Windows). Edit the command in `.claude/settings.json` to `student-wiki tracker brief --hook`; `upgrade` keeps your other settings |
+| PowerShell is your Claude Code shell | The session hook is written for a POSIX shell (Git Bash, the Claude Code default on Windows). Edit the command in `.claude/settings.json` to `student-wiki start --hook`; `upgrade` keeps your other settings |
 
 ---
 
