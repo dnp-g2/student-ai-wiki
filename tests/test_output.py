@@ -2,6 +2,7 @@
 import os
 import stat
 import unittest
+from pathlib import Path
 
 from _util import VaultCase, run_cli
 
@@ -18,6 +19,11 @@ class OutputTest(VaultCase):
             tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
         return dict(os.environ, PATH=str(bin_dir))
 
+    def shell_vault(self):
+        """The vault path as init prints it; a temp folder under the home directory shows as ~/..."""
+        home = Path.home().resolve()
+        return "~/" + self.vault.relative_to(home).as_posix() if home in self.vault.parents else str(self.vault)
+
     def test_init_prints_a_summary_and_a_line_to_paste(self):
         proc = run_cli("init", self.vault, env=self.fake_tools("claude", "codex"))
         self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -25,26 +31,31 @@ class OutputTest(VaultCase):
         self.assertFalse(out.lstrip().startswith("{"))
         self.assertIn(f"Created your vault at {self.vault}", out)
         self.assertIn("Obsidian", out)
-        self.assertIn("&& codex", out)
-        self.assertIn("(or: claude)", out)
+        lines = [line.strip() for line in out.splitlines()]
+        codex, claude = lines.index(f"cd {self.shell_vault()} && codex"), lines.index(f"cd {self.shell_vault()} && claude")
+        self.assertEqual(claude, codex + 1)
+        self.assertIn("Paste one of these lines", out)
         self.assertIn("ingest ~/Downloads/", out)
-        self.assertLess(len(out.splitlines()), 15)
+        self.assertLess(len(out.splitlines()), 16)
 
     def test_start_command_names_the_installed_tool(self):
         out = run_cli("init", self.vault, env=self.fake_tools("claude")).stdout
         self.assertIn("&& claude", out)
-        self.assertNotIn("(or:", out)
+        self.assertNotIn("&& codex", out)
+        self.assertIn("Paste this line", out)
 
     def test_init_without_an_ai_tool_says_where_to_get_one(self):
         out = run_cli("init", self.vault, env=self.fake_tools()).stdout
         self.assertIn("Neither codex nor claude is installed", out)
         self.assertIn("&& codex", out)
+        self.assertIn("&& claude", out)
 
     def test_start_command_quotes_a_path_with_spaces(self):
         spaced = self.base / "My Vault"
         out = self.cli_json("init", spaced, "--json")
-        self.assertIn("'", out["start_command"])
-        self.assertIn("My Vault", out["start_command"])
+        for command in out["start_commands"]:
+            self.assertIn("'", command)
+            self.assertIn("My Vault", command)
 
     def test_dry_run_says_nothing_was_written(self):
         out = run_cli("init", self.vault, "--dry-run").stdout

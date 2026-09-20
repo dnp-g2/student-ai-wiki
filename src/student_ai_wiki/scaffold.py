@@ -268,7 +268,7 @@ class Sync:
 
 # ---------- human-readable output ----------
 
-# The first name that is installed goes into the start line; codex is preferred.
+# Start lines are printed in this order.
 AI_TOOLS = ("codex", "claude")
 
 
@@ -282,10 +282,11 @@ def shell_path(path: Path) -> str:
     return shlex.quote(str(path))
 
 
-def start_command(root: Path) -> str:
-    """A program cannot change the directory of the shell that ran it, so init prints the line to paste."""
-    installed = [tool for tool in AI_TOOLS if shutil.which(tool)]
-    return f"cd {shell_path(root)} && {installed[0] if installed else AI_TOOLS[0]}"
+def start_commands(root: Path) -> list:
+    """A program cannot change the directory of the shell that ran it, so init prints lines to paste:
+    one per installed AI tool, or one per supported tool when none is installed yet."""
+    tools = [tool for tool in AI_TOOLS if shutil.which(tool)] or AI_TOOLS
+    return [f"cd {shell_path(root)} && {tool}" for tool in tools]
 
 
 def count(items, noun: str) -> str:
@@ -306,13 +307,12 @@ def render_init(result: dict) -> str:
     lines += bullet_list(f"  Already there and left as they were ({len(kept)}):", kept)
     if dry:
         return "\n".join(lines + ["", "Nothing was written. Run the same command without --dry-run to create it."])
-    installed = [tool for tool in AI_TOOLS if shutil.which(tool)]
-    others = [tool for tool in installed if not result["start_command"].endswith(tool)]
+    commands = result["start_commands"]
     lines += ["", "Next:",
               "  1. Open the folder in Obsidian (Open folder as vault), then enable the Dataview community plugin.",
-              "  2. Start your AI tool inside the vault. Paste this line:", "",
-              f"       {result['start_command']}" + (f"        (or: {others[0]})" if others else ""), ""]
-    if not installed:
+              f"  2. Start your AI tool inside the vault. Paste {'this line' if len(commands) == 1 else 'one of these lines'}:",
+              "", *[f"       {command}" for command in commands], ""]
+    if not any(shutil.which(tool) for tool in AI_TOOLS):
         lines += ["     Neither codex nor claude is installed yet. Install one first:",
                   "       Codex CLI    https://developers.openai.com/codex/cli",
                   "       Claude Code  https://docs.anthropic.com/claude-code", ""]
@@ -364,10 +364,10 @@ def cmd_init(args) -> None:
 
     result = {"status": "proposed" if args.dry_run else "created", "root": str(root), "version": __version__}
     result.update(sync.summary())
-    result["start_command"] = start_command(root)
+    result["start_commands"] = start_commands(root)
     result["next_steps"] = [
         f"Open {root} in Obsidian (Open folder as vault) and enable the Dataview community plugin",
-        f"Start your AI tool inside the vault: {result['start_command']}",
+        "Start your AI tool inside the vault: " + "   or   ".join(result["start_commands"]),
         "Say: ingest ~/Downloads/<your first lecture file>",
     ]
     if args.json:
