@@ -31,6 +31,7 @@ tags: [meta, log]
 - `raw/.manifest.json` (version 2) records the original path, original filename, SHA-256, size, course, type, and date of every filed source, next to the wiki pages it produced. SHA-256 replaces the `md5sum` step, which macOS does not ship.
 - `raw/` is now described as append-only: filed sources are never edited, renamed, or deleted. Files already sitting in `raw/` are registered in place.
 - Source pages gain `source_type` and `original_name` frontmatter; ingest log entries gain a `Source:` provenance line.
+- An original path under the home directory is recorded as `~/...`, so a committed manifest or log carries no username.
 - Added `tests/test_file_source.py` for the filing script.
 - Rewrote the setup guide in the source folder to describe the new workflow, part of the change the user approved. The manifest holds no sources yet.
 - Nothing was ingested or reviewed.

@@ -1,6 +1,7 @@
-"""Tests for scripts/file_source.py. Run: python3 -m unittest tests/test_file_source.py"""
+"""Tests for scripts/file_source.py. Run: python3 -m unittest discover -s tests"""
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -28,11 +29,12 @@ class FileSourceTest(unittest.TestCase):
         path.write_bytes(content)
         return path
 
-    def run_script(self, path, *extra, course="comp6713", kind="lecture"):
+    def run_script(self, path, *extra, course="comp6713", kind="lecture", home=None):
+        env = dict(os.environ, HOME=str(home)) if home else None
         return subprocess.run(
             [sys.executable, str(SCRIPT), str(path), "--course", course, "--type", kind,
              "--root", str(self.root), *extra],
-            capture_output=True, text=True,
+            capture_output=True, text=True, env=env,
         )
 
     def manifest(self):
@@ -58,6 +60,13 @@ class FileSourceTest(unittest.TestCase):
         self.assertIn("filed_at", entry)
         self.assertNotIn("ingested_at", entry)
         self.assertEqual(self.manifest()["version"], 2)
+
+    def test_home_directory_is_recorded_as_tilde(self):
+        src = self.source("L2.pdf", b"home")
+        out = json.loads(self.run_script(src, "--date", "2026-09-20", home=self.inbox.parent).stdout)
+        self.assertEqual(out["original_path"], "~/Down loads/L2.pdf")
+        entry = self.manifest()["sources"][out["raw_path"]]
+        self.assertEqual(entry["original_path"], "~/Down loads/L2.pdf")
 
     def test_date_precedence(self):
         dated = self.source("2026-03-02-week3.docx", b"a")

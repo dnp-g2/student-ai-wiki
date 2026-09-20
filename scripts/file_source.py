@@ -4,8 +4,10 @@ file_source.py - file a course source into raw/ and record its provenance.
 
 The source is copied to raw/<COURSE>/<type-folder>/YYYY-MM-DD-<type>-<slug>.<ext> and is
 never modified afterwards. The original path, original filename, SHA-256 and size go into
-raw/.manifest.json, keyed by the raw path. The wiki-ingest skill merges the wiki half of
-the entry (ingested_at, pages_created, ...) once the pages are written.
+raw/.manifest.json, keyed by the raw path. A path under the home directory is recorded as
+~/..., which keeps the username out of a manifest that gets committed. The wiki-ingest
+skill merges the wiki half of the entry (ingested_at, pages_created, ...) once the pages
+are written.
 
 Usage:
   python3 scripts/file_source.py <file> --course COMP6713 --type lecture
@@ -45,6 +47,13 @@ SLUG_MAX = 80
 def slugify(text: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-").lower()
     return slug[:SLUG_MAX].strip("-") or "source"
+
+
+def portable_path(path: Path) -> str:
+    home = Path.home().resolve()
+    if home in path.parents:
+        return "~/" + path.relative_to(home).as_posix()
+    return str(path)
 
 
 def sha256_of(path: Path) -> str:
@@ -119,7 +128,7 @@ def main() -> None:
     result = {
         "sha256": digest,
         "size_bytes": src.stat().st_size,
-        "original_path": str(src),
+        "original_path": portable_path(src),
         "original_name": src.name,
     }
 

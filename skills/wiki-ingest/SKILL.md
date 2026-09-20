@@ -66,7 +66,7 @@ Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` 
 
 ## Manifest Format
 
-`scripts/file_source.py` writes the provenance fields (`sha256` through `filed_at`) when it files the source. Step 11 adds the rest. An entry with `filed_at` and no `ingested_at` is filed and awaiting ingest.
+`scripts/file_source.py` writes the provenance fields (`sha256` through `filed_at`) when it files the source. It records a path under the home directory as `~/...`; copy `original_path` from the script's output into `log.md` as printed, and never expand it to an absolute path. Step 11 adds the rest. An entry with `filed_at` and no `ingested_at` is filed and awaiting ingest.
 
 ```json
 {
@@ -78,7 +78,7 @@ Pick the type by what the file is. Use the course code as `{COURSE}`, or `misc` 
       "course": "COMP6713",
       "type": "lecture",
       "date": "2026-06-01",
-      "original_path": "/Users/me/Downloads/L3 (final).pdf",
+      "original_path": "~/Downloads/L3 (final).pdf",
       "original_name": "L3 (final).pdf",
       "filed_at": "2026-06-01T09:14:02Z",
       "ingested_at": "2026-06-01",
