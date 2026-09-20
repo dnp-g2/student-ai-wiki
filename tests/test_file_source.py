@@ -30,7 +30,8 @@ class FileSourceTest(unittest.TestCase):
         return path
 
     def run_script(self, path, *extra, course="comp6713", kind="lecture", home=None):
-        env = dict(os.environ, HOME=str(home)) if home else None
+        # Path.home() reads HOME on POSIX and USERPROFILE on Windows.
+        env = dict(os.environ, HOME=str(home), USERPROFILE=str(home)) if home else None
         return subprocess.run(
             [*CLI, "file", str(path), "--course", course, "--type", kind,
              "--root", str(self.root), *extra],
@@ -42,7 +43,7 @@ class FileSourceTest(unittest.TestCase):
 
     def test_files_with_conventional_name_and_provenance(self):
         src = self.source("L3 (Final) Attention.PDF", b"attention")
-        proc = self.run_script(src, "--date", "2026-09-20")
+        proc = self.run_script(src, "--date", "2026-09-20", home=self.root)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         out = json.loads(proc.stdout)
         expected = "raw/COMP6713/lectures/2026-09-20-lecture-l3-final-attention.pdf"

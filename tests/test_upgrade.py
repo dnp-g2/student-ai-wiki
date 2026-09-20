@@ -127,7 +127,7 @@ class UpgradeTest(VaultCase):
         self.assertIn("pipx upgrade student-ai-wiki", proc.stderr)
 
     def test_crlf_checkout_counts_as_unmodified(self):
-        (self.vault / SKILL).write_bytes(self.shipped.replace(b"\n", b"\r\n"))
+        (self.vault / SKILL).write_bytes(self.shipped.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
         self.assertEqual(self.upgrade()["status"], "up_to_date")
 
     def test_unmanaged_folder_points_at_init(self):
