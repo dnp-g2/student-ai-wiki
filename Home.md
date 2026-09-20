@@ -1,7 +1,7 @@
 ---
 tags: [home]
 ---
-# 🏠 Student LLM Wiki
+# 🏠 Student AI Wiki
 
 > Your slides go in, your wiki comes out. Read it in Obsidian and let the AI keep it up to date.
 

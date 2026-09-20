@@ -3,7 +3,7 @@ name: wiki-core
 description: Core operating rules for the student knowledge wiki. This skill should be used whenever working inside an Obsidian vault that contains a wiki/ folder with hot.md, or when the user mentions ingest, lint, review, exam-prep, or asks to build/maintain their course knowledge base. Loads the three-layer architecture, token budget rules, and English-only page formats. Always loads first.
 ---
 
-# Student LLM Wiki: Core
+# Student AI Wiki: Core
 
 You maintain a student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
 

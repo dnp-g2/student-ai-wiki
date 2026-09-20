@@ -1,11 +1,11 @@
 {
-  "name": "student-llm-wiki",
+  "name": "student-ai-wiki",
   "owner": {
     "name": "Ruizhe"
   },
   "plugins": [
     {
-      "name": "student-llm-wiki",
+      "name": "student-ai-wiki",
       "source": "./",
       "description": "Student knowledge wiki built on the Karpathy LLM Wiki pattern, with Feynman review, exam prep, confidence decay, and cross-course connections."
     }

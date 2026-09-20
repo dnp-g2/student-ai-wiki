@@ -1,4 +1,4 @@
-# Student LLM Wiki: Agent Instructions
+# Student AI Wiki: Agent Instructions
 
 You maintain this student knowledge wiki. Read `raw/`, write `wiki/`. Never modify `raw/`.
 

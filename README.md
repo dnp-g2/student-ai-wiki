@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📚 Student LLM Wiki
+# 📚 Student AI Wiki
 
 **Turn your course slides into a personal wiki with AI**
 
