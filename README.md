@@ -16,83 +16,92 @@ Based on [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/4
 
 ---
 
-### Prerequisites
+### Requirements
 
-**1. Obsidian (for browsing your notes)**
-- Download: [https://obsidian.md/download](https://obsidian.md/download)
-- Free. Available on Windows / macOS / Linux / iOS / Android
-- Once it is installed, add the **Dataview** community plugin (the Home dashboard needs it)
-
-**2. An AI tool (pick just one)**
-
-| Tool | Best for | Get it |
-|---|---|---|
-| Claude Code CLI **≥2.1.277** | Claude in your terminal | [Install guide](https://docs.anthropic.com/claude-code) |
-| OpenAI Codex CLI | Codex in your terminal | [Install guide](https://developers.openai.com/codex/cli) |
-
-**The minimum supported Claude Code CLI version is 2.1.277.** Older versions are not supported. Use a current OpenAI Codex CLI release.
-
-Both CLIs use the root [`AGENTS.md`](AGENTS.md) as their shared project instructions and load operational rules from [`skills/`](skills/) on demand. Only these two CLIs are supported.
-
-**3. Python 3** (already on macOS and most Linux systems; the filing and tracker scripts use the standard library only). On Windows, make sure the `python3` command works, and run `pip install tzdata` so timed deadlines convert to your timezone.
-
-**4. Your course material** (PDF, Word, PowerPoint, Markdown, or plain text)
+| You need | Notes |
+|---|---|
+| **Python 3.9 or newer** | Already on macOS and most Linux systems. On Windows, install it from [python.org](https://www.python.org/downloads/) |
+| **pipx** or **uv** | Installs command-line tools in their own environment: [pipx](https://pipx.pypa.io/stable/installation/) or [uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| **Obsidian** | Free, from [obsidian.md/download](https://obsidian.md/download). The dashboards need the **Dataview** community plugin |
+| **One AI CLI** | [Claude Code CLI](https://docs.anthropic.com/claude-code) **2.1.277 or newer**, or [OpenAI Codex CLI](https://developers.openai.com/codex/cli). Only these two are supported |
+| **Your course material** | PDF, Word, PowerPoint, Markdown, or plain text |
 
 ---
 
-### Step 1: Clone the repo and open in Obsidian
+### Install
 
 ```bash
-git clone https://github.com/dnp-g2/student-ai-wiki.git
-cd student-ai-wiki
+pipx install student-ai-wiki
 ```
 
-Open Obsidian → "Open folder as vault" → select the `student-ai-wiki` folder.
+or, with uv:
 
-> **Install the Dataview plugin**: Obsidian Settings → Community plugins → Browse → search `Dataview` → Install and enable.
+```bash
+uv tool install student-ai-wiki
+```
 
----
+Check it:
 
-### Step 2: Open the project with your AI tool
+```bash
+student-wiki --version
+```
 
-<details>
-<summary><strong>Claude Code CLI</strong></summary>
-
-1. Install Claude Code CLI using the [official guide](https://docs.anthropic.com/claude-code).
-2. Check `claude --version`. This project requires **2.1.277 or newer**; upgrade before continuing if yours is older.
-3. Run in the repository root:
-   ```bash
-   claude
-   ```
-4. Follow the sign-in prompts on first launch.
-5. Project instructions come from `AGENTS.md`. `.claude/skills/` and `.claude/commands/` expose the shared skills and Claude slash commands.
-6. Type a plain-text request such as `lint`, or use a Claude slash command such as `/lint`.
-
-</details>
-
-<details>
-<summary><strong>OpenAI Codex CLI</strong></summary>
-
-1. Install Codex CLI using the [official guide](https://developers.openai.com/codex/cli), for example with npm:
-   ```bash
-   npm install -g @openai/codex
-   ```
-2. Check the installation with `codex --version`.
-3. Run in the repository root:
-   ```bash
-   codex
-   ```
-4. Follow the sign-in prompts on first launch, or run `codex login` beforehand.
-5. Codex reads `AGENTS.md` automatically and discovers the shared skills through `.agents/skills/`.
-6. Enter plain-text requests such as `ingest ~/Downloads/L1.pdf`, `lint`, or `review MATH1001`. The Claude slash commands are not Codex commands.
-
-</details>
-
-The skill and command discovery directories (`.claude/skills`, `.claude/commands`, `.agents/skills`) are relative symlinks to the canonical `skills/` and `commands/` directories. Preserve symlinks when cloning or copying the repository (Windows Git may require Developer Mode and symlink support). If native skill discovery is unavailable, explicitly ask the CLI to read `AGENTS.md` and follow its operation-rule paths; all canonical rules remain in `skills/`.
+If the shell cannot find `student-wiki`, run `pipx ensurepath` (or `uv tool update-shell`) and open a new terminal.
 
 ---
 
-### Step 3: Ingest your first slide deck
+### Quick start
+
+**1. Create your vault.** The vault is the folder that holds your notes and course files. Put it anywhere you like:
+
+```bash
+student-wiki init ~/StudyVault
+```
+
+**2. Open it in Obsidian.** Open folder as vault → select `~/StudyVault`. Then Settings → Community plugins → Browse → `Dataview` → Install and enable.
+
+**3. Start your AI tool inside the vault.**
+
+```bash
+cd ~/StudyVault
+claude        # or: codex
+```
+
+Claude Code asks you to trust the project the first time, because the vault has a session hook that shows your deadlines. Both CLIs read `AGENTS.md` and find the skills by themselves. Claude Code also gets slash commands such as `/ingest` and `/due`; Codex uses the plain-text requests.
+
+**4. Ingest your first file**, as described in the next section.
+
+Your vault is yours: the tool lives elsewhere on your machine, and the vault holds only your notes, your course files, and a copy of the AI rules. Back it up however you like, including your own private git repository.
+
+---
+
+### Upgrading
+
+```bash
+pipx upgrade student-ai-wiki      # or: uv tool upgrade student-ai-wiki
+cd ~/StudyVault
+student-wiki upgrade
+```
+
+The first command updates the tool. The second refreshes the AI rules inside your vault (`AGENTS.md`, `SCHEMA.md`, the skills, the slash commands, the session hook). It never touches `wiki/`, `raw/`, `Home.md`, `.obsidian/` or your tracker settings. If you edited one of the rule files yourself, `upgrade` leaves that file alone and tells you; `student-wiki upgrade --force` saves your version under `.student-wiki/backups/` and installs the new one. Add `--dry-run` to either command to preview it.
+
+`student-wiki doctor` checks the install and the vault and tells you what to fix.
+
+Release notes are in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+### Uninstall
+
+```bash
+pipx uninstall student-ai-wiki    # or: uv tool uninstall student-ai-wiki
+```
+
+Your vault is plain files and stays where it is.
+
+---
+
+### Ingest your first slide deck
 
 1. In your AI tool, type `ingest` and the location of the file, wherever it is:
    ```
@@ -180,17 +189,14 @@ Claude Code shows the briefing through a session hook in `.claude/settings.json`
 
 ---
 
-### Project structure
+### What is in a vault
 
 ```
-student-ai-wiki/
+StudyVault/
 ├── raw/              ← Filed copies of your course material (append-only)
 │   ├── XXXX/         ← One folder per course
 │   │   └── lectures/ tutorials/ assignments/ exams/ readings/ notes/ admin/
 │   └── .manifest.json    ← Provenance: original path and name, SHA-256, pages produced
-├── scripts/
-│   ├── file_source.py    ← Copies a file into raw/, renames it, records provenance
-│   └── tracker.py        ← Deadlines, priorities, grades, calendar feed
 ├── wiki/             ← AI-generated notes (auto-maintained)
 │   ├── concepts/         ← Concept pages (one per concept, with diagrams)
 │   ├── courses/          ← Course overviews (auto-created on ingest)
@@ -203,18 +209,43 @@ student-ai-wiki/
 │   ├── overview.md         ← The big picture across courses (auto-updated)
 │   ├── index.md            ← Master catalog
 │   └── hot.md              ← AI context cache (read first each session)
-├── calendar/         ← Generated .ics reminder feed (not committed)
+├── calendar/         ← Generated .ics reminder feed
 ├── Home.md           ← Obsidian dashboard
 │
-│   Shared instructions and CLI discovery:
+│   Installed by the tool, refreshed by `student-wiki upgrade`:
 ├── AGENTS.md         ← Single instruction entry point for both CLIs
-├── skills/           ← Canonical operation rules (loaded on demand)
-├── commands/         ← Canonical Claude slash-command definitions
-├── .agents/skills    ← Symlink to skills/ (Codex discovery)
-├── .claude/skills    ← Symlink to skills/ (Claude discovery)
-├── .claude/commands  ← Symlink to commands/ (Claude slash commands)
-└── .claude-plugin/   ← Optional Claude plugin packaging
+├── SCHEMA.md         ← Design reference
+├── .claude/skills/   ← Operation rules for Claude Code (loaded on demand)
+├── .claude/commands/ ← Claude slash commands
+├── .claude/settings.json ← Session hook that shows your deadlines
+├── .agents/skills/   ← The same operation rules for Codex
+└── .student-wiki/    ← Tool version that last wrote the vault, and upgrade backups
 ```
+
+The AI runs two commands for you: `student-wiki file` copies a source into `raw/` and records its provenance, and `student-wiki tracker` owns every date, priority and grade calculation. Both work from anywhere inside the vault, and you can run them yourself (`student-wiki tracker --help`).
+
+---
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `student-wiki: command not found` | Run `pipx ensurepath` (or `uv tool update-shell`), then open a new terminal |
+| The AI says it cannot run `student-wiki` | Same fix; then restart `claude` or `codex` from the new terminal |
+| No deadline briefing when Claude Code starts | Accept the project trust prompt, then run `student-wiki doctor` inside the vault |
+| Timed deadlines show in the wrong timezone on Windows | Set `timezone` in `wiki/tracker/_config.md`; `student-wiki doctor` reports whether the timezone data loads |
+| `upgrade` reports `conflicts` | You edited a rule file. Keep your edit, or run `student-wiki upgrade --force` (your version is saved under `.student-wiki/backups/`) |
+| The Home dashboard is empty | Enable the Dataview plugin in Obsidian |
+| Publishing the calendar fails | `calendar` publishing needs the [GitHub CLI](https://cli.github.com) signed in with the `gist` scope |
+| PowerShell is your Claude Code shell | The session hook is written for a POSIX shell (Git Bash, the Claude Code default on Windows). Edit the command in `.claude/settings.json` to `student-wiki tracker brief --hook`; `upgrade` keeps your other settings |
+
+---
+
+### Versioning
+
+Releases follow [Semantic Versioning](https://semver.org) over the `student-wiki` command line, the vault layout, and the `.student-wiki/state.json` format. While the version is `0.x`, a minor release may change these; the [changelog](CHANGELOG.md) says so when it happens. Every vault records the tool version that last wrote it, and a vault written by a newer version refuses an older tool.
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
