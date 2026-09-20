@@ -14,10 +14,25 @@ tags: [home]
 | `review COMPXXXX` | Get quizzed on a course |
 | `exam-prep COMPXXXX` | Get practice questions on your weak concepts |
 | `diagram Attention-Mechanism` | Add a Mermaid diagram to a concept page |
+| `add deadline COMPXXXX assignment 2 due 12 Oct 23:59 worth 20%` | Track an assignment, quiz, exam or to-do |
+| `due` | See what is overdue, due soon, and worth starting now |
+| `grades COMPXXXX` | See your standing and the mark you need on the rest |
+| `calendar` | Build the calendar file that puts reminders on your phone |
 
 > Type `ingest` and the location of a course file. A renamed copy is filed under `raw/{course-code}/{type}/`, its origin is recorded, and the course overview is created for you.
 >
-> Type these inside Claude Code or Codex. Claude Code also accepts them with a leading slash (`/ingest`, `/lint`, `/review`, `/exam-prep`, `/diagram`).
+> Type these inside Claude Code or Codex. Claude Code also accepts them with a leading slash (`/ingest`, `/lint`, `/review`, `/exam-prep`, `/diagram`, `/tracker`, `/due`).
+
+## ⏰ Due Soon
+
+```dataview
+TABLE WITHOUT ID file.link AS "Item", course AS "Course", due AS "Due", due_time AS "Time", weight AS "Weight %", status AS "Status"
+FROM "wiki/tracker"
+WHERE type AND due AND due <= date(today) + dur(14 days) AND (status = "todo" OR status = "doing")
+SORT due ASC
+```
+
+Overdue items sort to the top. The whole semester, milestones and marks are on the [[Dashboard]].
 
 ## 📚 Courses
 

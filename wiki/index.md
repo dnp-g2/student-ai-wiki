@@ -9,6 +9,9 @@ updated: 2026-06-01
 |---|---|---|---|
 | *No courses yet. Ingest your first slides to get started.* | | | |
 
+## Tracker
+[[Dashboard]] lists every assessment, deadline, exam and to-do; settings are in [[_config]]. Items live in `wiki/tracker/`.
+
 ## Concepts
 *Nothing here yet.*
 

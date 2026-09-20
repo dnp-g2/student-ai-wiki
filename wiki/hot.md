@@ -9,6 +9,9 @@ tags: [meta, hot-cache]
 - The wiki is set up and ready for its first slides
 - No slides or concept pages yet
 
+## Upcoming
+(None)
+
 ## Recent
 - 2026-09-20: Corrected setup instructions to target dnp-g2/student-ai-wiki and credited the upstream project.
 - 2026-09-20: Standardized on AGENTS.md for Claude Code CLI (≥2.1.277) and OpenAI Codex CLI; shared skills use native discovery links.
