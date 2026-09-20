@@ -559,5 +559,51 @@ class CalendarTest(TrackerCase):
         self.assertTrue((self.root / self.FEED).exists())
 
 
+class CheckTest(TrackerCase):
+    def groups(self):
+        out = self.run_json("check")
+        self.assertEqual(out["status"], "ok")
+        self.assertEqual(out["issues"], sum(g["count"] for g in out["groups"].values()))
+        return out["groups"]
+
+    def test_clean_tracker_has_no_issues(self):
+        (self.root / "wiki" / "sources").mkdir()
+        (self.root / "wiki" / "sources" / "outline.md").write_text("# Outline\n", encoding="utf-8")
+        self.concept("Strong", "high", "2026-09-15")
+        self.add("Assignment 1", due="2026-10-12", weight=40, source="outline")
+        self.add("Final", kind="exam", due="2026-11-20", weight=60, concepts="Strong")
+        self.assertEqual({k: v["count"] for k, v in self.groups().items() if v["count"]}, {})
+
+    def test_each_group_fires(self):
+        self.concept("Weak", "low", "2026-09-15")
+        self.add("Late", due="2026-09-10", weight=20, source="missing-source")
+        self.add("Sat long ago", kind="quiz", due="2026-09-01", weight=5)
+        self.run_json("done", "COMP9417-sat-long-ago")
+        self.add("No date", weight=10, needs_check="due")
+        self.add("No weight", due="2026-10-30")
+        self.add("Midterm", kind="exam", due="2026-10-02", weight=30, concepts="Weak,Ghost")
+        self.add("Quiz 2", kind="quiz", due="2026-10-05", weight=5)
+        self.item_path("COMP9417-odd").write_text("---\ntype: essay\ncourse: COMP9417\n---\n", encoding="utf-8")
+        self.item_path("COMP9417-binary").write_bytes(b"---\ntype: quiz\n\xff\n---\n")
+        stray = self.root / "wiki" / "concepts" / "Untitled.md"
+        stray.write_text("---\ntags:\n  - tracker\ntype: quiz\n---\n", encoding="utf-8")
+
+        groups = self.groups()
+        ids = {name: [i.get("id") or i.get("path") or i.get("course") for i in g["items"]] for name, g in groups.items()}
+        self.assertEqual(ids["overdue"], ["COMP9417-late"])
+        self.assertEqual(ids["milestone_overdue"], ["COMP9417-late"] * 3)
+        self.assertEqual(ids["missing_due"], ["COMP9417-no-date", "COMP9417-odd"])
+        self.assertEqual(ids["missing_weight"], ["COMP9417-no-weight", "COMP9417-odd"])
+        self.assertEqual(groups["weight_sum"]["items"], [{"course": "COMP9417", "total": 70}])
+        self.assertEqual(ids["needs_check"], ["COMP9417-no-date"])
+        self.assertEqual(ids["exam_weak_concepts"], ["COMP9417-midterm"])
+        self.assertEqual(ids["exam_no_concepts"], ["COMP9417-quiz-2"])
+        self.assertEqual(groups["broken_concepts"]["items"], [{"id": "COMP9417-midterm", "concept": "Ghost"}])
+        self.assertEqual(groups["broken_sources"]["items"], [{"id": "COMP9417-late", "source": "missing-source"}])
+        self.assertEqual(ids["marks_missing"], ["COMP9417-sat-long-ago"])
+        self.assertEqual(ids["misplaced"], ["wiki/concepts/Untitled.md"])
+        self.assertEqual(sorted(ids["invalid"]), ["COMP9417-odd", "wiki/tracker/COMP9417-binary.md"])
+
+
 if __name__ == "__main__":
     unittest.main()

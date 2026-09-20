@@ -21,6 +21,7 @@ Usage:
   python3 scripts/tracker.py grades [--course C] [--target 75] [--what-if ID=85]
   python3 scripts/tracker.py target COURSE 75
   python3 scripts/tracker.py ics [--out calendar/student-wiki.ics] [--publish-gist]
+  python3 scripts/tracker.py check
 
 Every command takes --root DIR (default: the repository containing this script) and
 --today YYYY-MM-DD. Each prints one JSON object with a status key; brief prints text unless
@@ -64,6 +65,7 @@ WEAK_CONFIDENCE = ("low", "medium")
 STALE_AFTER_DAYS = 20
 EXAM_WINDOW_DAYS = 21
 MILESTONE_WINDOW_DAYS = 7
+MARK_EXPECTED_AFTER_DAYS = 14
 HOT_MAX_LINES = 5
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 FEED_PATH = "calendar/student-wiki.ics"
@@ -992,6 +994,60 @@ def cmd_ics(tracker: Tracker, args) -> None:
     emit(result)
 
 
+def cmd_check(tracker: Tracker, args) -> None:
+    """Health groups for wiki-lint. Each group lists the items it concerns."""
+    items, unreadable = tracker.load()
+    today = tracker.today
+    active = [i for i in items if i["status"] in OPEN]
+    graded_work = [i for i in items if i["type"] != "todo" and i["status"] != "dropped"]
+    exams_soon = [i for i in active if i["type"] in EXAM_LIKE and i["due"]
+                  and 0 <= (i["due"] - today).days <= EXAM_WINDOW_DAYS]
+
+    def brief_of(item: dict) -> dict:
+        return {k: item[k] for k in ("id", "due", "weight") if item[k] is not None}
+
+    totals = {}
+    for item in graded_work:
+        if item["weight"] is not None and item["course"]:
+            totals[item["course"]] = totals.get(item["course"], 0) + item["weight"]
+    misplaced = []
+    for path in sorted((tracker.root / "wiki").rglob("*.md")):
+        if tracker.folder in path.parents:
+            continue
+        try:
+            data = Page(path).data
+        except (OSError, UnicodeDecodeError):
+            continue
+        tags = data.get("tags")
+        if "type" in data and "tracker" in (tags if isinstance(tags, list) else [tags]):
+            misplaced.append({"path": path.relative_to(tracker.root).as_posix()})
+
+    groups = {
+        "overdue": [brief_of(i) for i in active if is_overdue(i, today)],
+        "milestone_overdue": [{"id": i["id"], "text": m["text"], "due": m["due"]} for i in active
+                              for m in i["milestones"] if not m["done"] and m["due"] and m["due"] < today.isoformat()],
+        "missing_due": [brief_of(i) for i in active if i["type"] != "todo" and i["due"] is None],
+        "missing_weight": [brief_of(i) for i in graded_work if i["weight"] is None],
+        "weight_sum": [{"course": c, "total": tidy(round(float(t), 1))} for c, t in sorted(totals.items()) if t != 100],
+        "needs_check": [{"id": i["id"], "fields": i["needs_check"]} for i in active if i["needs_check"]],
+        "exam_weak_concepts": [{"id": i["id"], "due": i["due"],
+                                "weak": [n for n in i["concepts"] if tracker.concept(n)["flagged"]]}
+                               for i in exams_soon if any(tracker.concept(n)["flagged"] for n in i["concepts"])],
+        "exam_no_concepts": [brief_of(i) for i in exams_soon if not i["concepts"]],
+        "broken_concepts": [{"id": i["id"], "concept": n} for i in items for n in i["concepts"]
+                            if not tracker.concept(n)["exists"]],
+        "broken_sources": [{"id": i["id"], "source": n} for i in items for n in i["sources"]
+                           if not (tracker.root / "wiki" / "sources" / f"{n}.md").exists()],
+        "marks_missing": [brief_of(i) for i in graded_work if i["status"] == "done" and i["mark"] is None
+                          and i["due"] and (today - i["due"]).days > MARK_EXPECTED_AFTER_DAYS],
+        "misplaced": misplaced,
+        "invalid": [{"id": i["id"], "problems": i["problems"]} for i in items if i["problems"]]
+                   + [{"path": path, "problems": [reason]} for path, reason in unreadable],
+    }
+    emit({"status": "ok", "today": today, "issues": sum(len(rows) for rows in groups.values()),
+          "groups": {name: {"count": len(rows), "items": rows} for name, rows in groups.items()}})
+
+
 def label(item: dict) -> str:
     return " ".join(filter(None, [item["course"], item["title"]]))
 
@@ -1228,6 +1284,9 @@ def build_parser() -> argparse.ArgumentParser:
     ics.add_argument("--publish-gist", action="store_true",
                      help="also upload the feed to a secret GitHub gist through the gh CLI")
     ics.set_defaults(run=cmd_ics)
+
+    check = commands.add_parser("check", parents=[common], help="health groups for wiki-lint")
+    check.set_defaults(run=cmd_check)
 
     hot = commands.add_parser("hot", parents=[common, writes], help="rewrite the Upcoming section of wiki/hot.md")
     hot.set_defaults(run=cmd_hot)
