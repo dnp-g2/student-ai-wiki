@@ -12,7 +12,7 @@ TODAY = "2026-09-20"
 
 # The same item after a round trip through Obsidian's Properties UI and a Windows editor.
 OBSIDIAN_PAGE = (
-    "﻿---\r\n"
+    "\ufeff---\r\n"
     "tags: [tracker, comp9417]\r\n"
     "type: assignment\r\n"
     "course: 'COMP9417'\r\n"
@@ -213,6 +213,117 @@ class StorageTest(TrackerCase):
         item = self.run_json("list")["items"][0]
         self.assertNotIn("due", item)
         self.assertEqual(len(item["problems"]), 3)
+
+
+class BriefTest(TrackerCase):
+    def semester(self):
+        (self.root / "wiki" / "tracker" / "_config.md").write_text(
+            "---\ntags: [meta, tracker-config]\ntimezone: Australia/Sydney\nterm_start: 2026-09-07\n"
+            "term_end: 2026-11-29\nbrief_days: 14\n---\n# Tracker Settings\n", encoding="utf-8")
+        self.concept("Gradient-Descent", "low", "2026-09-15")
+        self.concept("Regularization", "high", "2026-08-26")
+        self.concept("Strong", "high", "2026-09-15")
+        self.add("Quiz 1", kind="quiz", due="2026-09-18", weight=5)
+        self.add("Assignment 1", due="2026-09-28", time="23:59", weight=15)
+        self.run_json("update", "COMP9417-assignment-1", "--status", "doing")
+        self.add("Project", course="COMP4337", due="2026-10-19", weight=30, start_by="2026-09-19",
+                 needs_check="due_time")
+        self.add("Midterm", kind="exam", due="2026-10-02", time="14:00", weight=30, duration_min=120,
+                 concepts="Gradient-Descent,Regularization,Strong")
+
+    def test_empty_tracker(self):
+        proc = self.run_raw("brief")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("no items yet", proc.stdout)
+        self.assertEqual(len(proc.stdout.strip().splitlines()), 1)
+        hook = self.run_raw("brief", "--hook")
+        self.assertEqual((hook.returncode, hook.stdout), (0, ""))
+
+    def test_hook_mode_survives_a_corrupt_page(self):
+        self.item_path("COMP9417-bad").write_bytes(b"---\ntype: quiz\n\xff\xfe\n---\n")
+        hook = self.run_raw("brief", "--hook")
+        self.assertEqual(hook.returncode, 0, hook.stderr)
+
+    def test_sections_and_scores(self):
+        self.semester()
+        text = self.run_raw("brief").stdout
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "📅 Tracker brief · Sun 2026-09-20 · Week 2 of 12")
+        for line in ("🔥 Overdue (1):", "- COMP9417 Quiz 1 · due Fri 2026-09-18 · 5%",
+                     "⏰ Due in 14 days (2):",
+                     "- Mon 2026-09-28 23:59 · 8d · COMP9417 Assignment 1 · 15% · doing",
+                     "- Fri 2026-10-02 14:00 · 12d · COMP9417 Midterm · 30% · todo",
+                     "🚀 Start now (1):", "- COMP4337 Project · start-by 2026-09-19 · due 2026-10-19 · 30%",
+                     "🪜 Milestones (6):", "- 2026-09-22 · COMP9417 Assignment 1 · Understand the spec and plan",
+                     "🧠 Exam readiness (1):",
+                     "- COMP9417 Midterm in 12d · weak: Gradient-Descent (low), Regularization (stale 25d) · "
+                     "run `review COMP9417` by 2026-09-25 and `exam-prep COMP9417` by 2026-09-29",
+                     "🎯 Next: COMP9417 Midterm (score 42)",
+                     "⚠️ Needs checking (1):", "- COMP4337 Project · due_time"):
+            self.assertIn(line, lines)
+        headers = [l for l in lines if not l.startswith("- ")]
+        self.assertEqual([h[0] for h in headers], list("📅🔥⏰🚀🪜🧠🎯⚠"))
+        self.assertLess(len(text.split()), 200)
+
+        scores = {i["id"]: i["score"] for i in self.run_json("list")["items"]}
+        self.assertEqual(scores, {"COMP9417-quiz-1": 20, "COMP9417-assignment-1": 13,
+                                  "COMP9417-midterm": 42, "COMP4337-project": 14})
+
+    def test_cap_course_filter_and_json(self):
+        self.semester()
+        lines = self.run_raw("brief", "--max", "1").stdout.splitlines()
+        self.assertIn("- +1 more", lines)
+        self.assertIn("- +5 more", lines)
+        only = self.run_raw("brief", "--course", "comp4337").stdout
+        self.assertNotIn("COMP9417", only)
+        data = self.run_json("brief", "--json")
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual([i["id"] for i in data["overdue"]], ["COMP9417-quiz-1"])
+        self.assertEqual(data["next"]["id"], "COMP9417-midterm")
+
+    def test_quiet_week(self):
+        self.add("Far", due="2026-12-01", weight=5)
+        self.assertIn("Nothing due in the next 14 days", self.run_raw("brief").stdout)
+
+    def test_focus_returns_the_next_exam_with_weak_concepts_first(self):
+        self.semester()
+        out = self.run_json("focus", "comp9417")
+        self.assertEqual(out["item"]["id"], "COMP9417-midterm")
+        self.assertEqual([(c["name"], c["flagged"]) for c in out["concepts"]],
+                         [("Gradient-Descent", True), ("Regularization", True), ("Strong", False)])
+        self.assertEqual(self.run_json("focus", "COMP4337")["status"], "none")
+
+    def test_plan_keeps_ticked_milestones(self):
+        self.add("Assignment 3", due="2026-10-30", weight=20)
+        path = self.item_path("COMP9417-assignment-3")
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace("- [ ] Understand", "- [x] Understand") + "Keep this note.\n", encoding="utf-8")
+        out = self.run_json("plan", "COMP9417-assignment-3", "--steps", "Outline; Build ;Submit")
+        self.assertEqual(out["status"], "planned")
+        self.assertEqual(out["milestones"], [
+            {"text": "Understand the spec and plan", "due": "2026-10-22", "done": True},
+            {"text": "Outline", "due": "2026-10-23", "done": False},
+            {"text": "Build", "due": "2026-10-27", "done": False},
+            {"text": "Submit", "due": "2026-10-29", "done": False}])
+        text = path.read_text(encoding="utf-8")
+        self.assertNotIn("First full draft", text)
+        self.assertIn("Keep this note.", text)
+        self.assertLess(text.index("- [ ] Submit"), text.index("## Notes"))
+
+    def test_hot_rewrites_only_the_upcoming_section(self):
+        hot = self.root / "wiki" / "hot.md"
+        hot.write_text("---\ntags: [meta, hot-cache]\n---\n# Hot Cache\n\n## Status\n- Ready\n\n"
+                       "## Recent\n- 2026-09-20: Something\n", encoding="utf-8")
+        self.assertEqual(self.run_json("hot")["status"], "updated")
+        self.assertIn("## Status\n- Ready\n\n## Upcoming\n(None)\n\n## Recent\n", hot.read_text(encoding="utf-8"))
+        self.semester()
+        self.assertEqual(self.run_json("hot")["status"], "updated")
+        text = hot.read_text(encoding="utf-8")
+        self.assertIn("## Upcoming\n- 2026-09-18 · COMP9417 Quiz 1 · 5% · overdue\n"
+                      "- 2026-09-28 23:59 · COMP9417 Assignment 1 · 15% · doing\n"
+                      "- 2026-10-02 14:00 · COMP9417 Midterm · 30% · todo\n\n## Recent\n", text)
+        self.assertIn("- 2026-09-20: Something\n", text)
+        self.assertEqual(self.run_json("hot")["status"], "unchanged")
 
 
 if __name__ == "__main__":

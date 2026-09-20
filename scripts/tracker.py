@@ -14,9 +14,14 @@ Usage:
   python3 scripts/tracker.py done ID
   python3 scripts/tracker.py mark ID 17 --out-of 20
   python3 scripts/tracker.py list [--course C] [--within DAYS] [--status S] [--type T] [--all]
+  python3 scripts/tracker.py plan ID [--steps "Outline;Build;Submit"] [--start-by DATE]
+  python3 scripts/tracker.py focus COURSE
+  python3 scripts/tracker.py brief [--days 14] [--max 5] [--course C] [--json] [--hook]
+  python3 scripts/tracker.py hot
 
 Every command takes --root DIR (default: the repository containing this script) and
---today YYYY-MM-DD. Each prints one JSON object with a status key.
+--today YYYY-MM-DD. Each prints one JSON object with a status key; brief prints text unless
+--json is given. Settings come from the frontmatter of wiki/tracker/_config.md.
 """
 import argparse
 import json
@@ -49,6 +54,15 @@ STEPS_LARGE = (("Understand the spec and plan", 0.15), ("Core work halfway", 0.4
                ("Test and polish", 0.9), ("Submit with buffer", -1))
 STEPS_EXAM = (("Review weak concepts (run review)", 0.0), ("Practice set (run exam-prep)", 0.5),
               ("Timed practice and recap", -2))
+
+WEAK_CONFIDENCE = ("low", "medium")
+STALE_AFTER_DAYS = 20
+EXAM_WINDOW_DAYS = 21
+MILESTONE_WINDOW_DAYS = 7
+HOT_MAX_LINES = 5
+WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+DEFAULTS = {"timezone": None, "default_target": None, "term_start": None, "term_end": None,
+            "alarms": True, "brief_days": 14}
 
 KEY_RE = re.compile(r"^([A-Za-z_][\w-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM_RE = re.compile(r"^\s*-(?:\s+(.*))?$")
@@ -146,8 +160,8 @@ class Page:
         self.path = path
         if text is None:
             text = path.read_bytes().decode("utf-8")
-        self.bom = text.startswith("﻿")
-        text = text.lstrip("﻿")
+        self.bom = text.startswith("\ufeff")
+        text = text.lstrip("\ufeff")
         self.nl = "\r\n" if "\r\n" in text else "\n"
         lines = text.split(self.nl)
         self.fences, self.fm, self.body = None, [], lines
@@ -217,7 +231,7 @@ class Page:
 
     def text(self) -> str:
         head = [self.fences[0], *self.fm, self.fences[1]] if self.fences else []
-        return ("﻿" if self.bom else "") + self.nl.join(head + self.body)
+        return ("\ufeff" if self.bom else "") + self.nl.join(head + self.body)
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -335,25 +349,93 @@ def build_item(page: Page, root: Path) -> dict:
     return item
 
 
-def view(item: dict, today: date) -> dict:
+def view(item: dict, tracker) -> dict:
     """The item as reported: derived fields added, empty fields dropped."""
     shown = dict(item)
     if item["due"]:
-        shown["days_left"] = (item["due"] - today).days
-        shown["overdue"] = item["status"] in OPEN and item["due"] < today
+        shown["days_left"] = (item["due"] - tracker.today).days
+        shown["overdue"] = is_overdue(item, tracker.today)
+    if item["status"] in OPEN:
+        shown["score"] = score(item, tracker)
     return {k: v for k, v in shown.items() if v is not None and v != []}
+
+
+def is_overdue(item: dict, today: date) -> bool:
+    return item["status"] in OPEN and item["due"] is not None and item["due"] < today
+
+
+def score(item: dict, tracker) -> int:
+    """Weight x urgency x progress x exam readiness; higher means work on it sooner."""
+    weight = item["weight"]
+    size = max(weight, 3) if weight is not None else 5 if item["type"] == "todo" else 10
+    if item["due"] is None:
+        urgency = 0.5
+    elif item["due"] < tracker.today:
+        urgency = 4
+    else:
+        days_left = (item["due"] - tracker.today).days
+        urgency = min(max(lead_days(weight) / max(days_left, 0.5), 0.2), 4)
+    progress = 0.7 if item["status"] == "doing" else 1.0
+    readiness = 1.0
+    if item["type"] in EXAM_LIKE:
+        weak = sum(1 for name in item["concepts"] if tracker.concept(name)["flagged"])
+        readiness = min(1 + 0.1 * weak, 1.5)
+    return round(size * urgency * progress * readiness)
 
 
 class Tracker:
     def __init__(self, args):
         self.root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
         self.folder = self.root / "wiki" / "tracker"
-        self.today = date.today()
+        self.config = dict(DEFAULTS)
+        config_path = self.folder / "_config.md"
+        if config_path.exists():
+            try:
+                self.config.update({k: v for k, v in Page(config_path).data.items() if k in DEFAULTS and v is not None})
+            except (OSError, UnicodeDecodeError):
+                pass
+        self.today = self._local_today()
+        self._concepts = {}
         if args.today:
             try:
                 self.today = date.fromisoformat(args.today)
             except ValueError:
                 fail(f"--today '{args.today}' is not a valid YYYY-MM-DD date")
+
+    def _local_today(self) -> date:
+        try:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo(str(self.config["timezone"]))).date()
+        except Exception:  # no timezone configured, or no zone database on this machine
+            return date.today()
+
+    def setting_date(self, key: str):
+        try:
+            return read_date(self.config[key])[0]
+        except ValueError:
+            return None
+
+    def concept(self, name: str) -> dict:
+        """Confidence and review age of a concept page, read from its frontmatter only."""
+        if name not in self._concepts:
+            state = {"name": name, "exists": False, "flagged": False, "label": "missing page"}
+            path = self.root / "wiki" / "concepts" / f"{name}.md"
+            try:
+                data = Page(path).data if path.exists() else None
+            except (OSError, UnicodeDecodeError):
+                data = None
+            if data is not None:
+                confidence = str(data.get("confidence") or "").lower()
+                try:
+                    age = (self.today - read_date(data.get("last_reviewed"))[0]).days
+                except ValueError:
+                    age = None
+                weak, stale = confidence in WEAK_CONFIDENCE, age is not None and age > STALE_AFTER_DAYS
+                state.update(exists=True, confidence=confidence or None, days_since_review=age,
+                             flagged=weak or stale,
+                             label=confidence if weak else f"stale {age}d" if stale else confidence or "unrated")
+            self._concepts[name] = state
+        return self._concepts[name]
 
     def path_for(self, item_id: str) -> Path:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", item_id):
@@ -471,7 +553,7 @@ def cmd_add(tracker: Tracker, args) -> None:
     item_id = "-".join(filter(None, [course, "todo" if args.type == "todo" else None, slug]))
     path = tracker.path_for(item_id)
     if path.exists():
-        emit({"status": "exists", "id": item_id, "item": view(build_item(Page(path), tracker.root), tracker.today)})
+        emit({"status": "exists", "id": item_id, "item": view(build_item(Page(path), tracker.root), tracker)})
         return
 
     fields = dict.fromkeys(FIELD_ORDER)
@@ -499,7 +581,7 @@ def cmd_add(tracker: Tracker, args) -> None:
         page.save()
     result = {"status": "proposed" if args.dry_run else "added", "id": item_id,
               "path": path.relative_to(tracker.root).as_posix(),
-              "item": view(build_item(page, tracker.root), tracker.today), "milestones": steps, "warnings": warnings}
+              "item": view(build_item(page, tracker.root), tracker), "milestones": steps, "warnings": warnings}
     if fields["start_by"]:
         result["start_by"] = fields["start_by"]
     emit(result)
@@ -518,7 +600,7 @@ def apply_changes(tracker: Tracker, args, item_id: str, changes: dict, warnings=
     if not args.dry_run:
         page.save()
     emit({"status": "proposed" if args.dry_run else "updated", "id": item_id,
-          "item": view(build_item(page, tracker.root), tracker.today), "warnings": warnings or []})
+          "item": view(build_item(page, tracker.root), tracker), "warnings": warnings or []})
 
 
 def cmd_update(tracker: Tracker, args) -> None:
@@ -584,8 +666,192 @@ def cmd_list(tracker: Tracker, args) -> None:
             continue
         if args.within is not None and (item["due"] is None or (item["due"] - tracker.today).days > args.within):
             continue
-        chosen.append(view(item, tracker.today))
+        chosen.append(view(item, tracker))
     emit({"status": "ok", "today": tracker.today, "count": len(chosen), "items": chosen})
+
+
+def cmd_plan(tracker: Tracker, args) -> None:
+    page = tracker.open_page(args.id)
+    if page is None or "type" not in page.data:
+        emit({"status": "not_found", "id": args.id})
+        return
+    item = build_item(page, tracker.root)
+    if item["due"] is None:
+        fail(f"{args.id} has no due date; set one with `update {args.id} --due YYYY-MM-DD` first")
+    try:
+        start = read_date(args.start_by)[0] if args.start_by else None
+    except ValueError:
+        fail(f"--start-by '{args.start_by}' is not a valid YYYY-MM-DD date")
+    if start:
+        page.patch({"start_by": start})
+    start = start or item["start_by"] or start_by_for(item["due"], item["weight"], item["created_at"] or tracker.today)
+    if args.steps:
+        names = [name.strip() for name in args.steps.split(";") if name.strip()]
+        steps = [(name, (index + 1) / len(names)) for index, name in enumerate(names[:-1])] + [(names[-1], -1)]
+    else:
+        steps = auto_steps(item["type"], item["weight"])
+    page.replace_open_milestones(place_steps(steps, start, item["due"]))
+    if not args.dry_run:
+        page.save()
+    emit({"status": "proposed" if args.dry_run else "planned", "id": args.id, "start_by": start,
+          "milestones": page.milestones()})
+
+
+def cmd_focus(tracker: Tracker, args) -> None:
+    course = normalise_course(args.course)
+    items, _ = tracker.load()
+    upcoming = [i for i in items if i["course"] == course and i["type"] in EXAM_LIKE
+                and i["status"] in OPEN and i["due"] and i["due"] >= tracker.today]
+    if not upcoming:
+        emit({"status": "none", "course": course})
+        return
+    concepts = [tracker.concept(name) for name in upcoming[0]["concepts"]]
+    concepts.sort(key=lambda c: not c["flagged"])
+    emit({"status": "ok", "course": course, "item": view(upcoming[0], tracker), "concepts": concepts})
+
+
+def label(item: dict) -> str:
+    return " ".join(filter(None, [item["course"], item["title"]]))
+
+
+def stamp(item: dict) -> str:
+    return " ".join(filter(None, [item["due"].isoformat(), item["due_time"]]))
+
+
+def percent(item: dict) -> str:
+    return f" · {item['weight']}%" if item["weight"] is not None else ""
+
+
+def brief_data(tracker: Tracker, days: int, course=None) -> dict:
+    items, _ = tracker.load()
+    if course:
+        items = [i for i in items if i["course"] == course]
+    today, horizon = tracker.today, tracker.today + timedelta(days=days)
+    active = [i for i in items if i["status"] in OPEN]
+    overdue = [i for i in active if is_overdue(i, today)]
+    due_soon = [i for i in active if i["due"] and today <= i["due"] <= horizon]
+    start_now = [i for i in active if i["status"] == "todo" and i["start_by"] and i["start_by"] <= today
+                 and i["due"] and i["due"] > horizon]
+    milestones = sorted(
+        ({"id": i["id"], "label": label(i), "text": m["text"], "due": m["due"]}
+         for i in active for m in i["milestones"]
+         if not m["done"] and m["due"] and m["due"] <= (today + timedelta(days=MILESTONE_WINDOW_DAYS)).isoformat()),
+        key=lambda m: (m["due"], m["id"]))
+    readiness = []
+    for item in due_soon + [i for i in active if i["due"] and horizon < i["due"]]:
+        days_left = (item["due"] - today).days
+        if item["type"] not in EXAM_LIKE or days_left > EXAM_WINDOW_DAYS:
+            continue
+        weak = [tracker.concept(name) for name in item["concepts"] if tracker.concept(name)["flagged"]]
+        if weak or not item["concepts"]:
+            readiness.append({"id": item["id"], "label": label(item), "course": item["course"],
+                              "days_left": days_left, "weak": weak, "linked": len(item["concepts"]),
+                              "review_by": max(today, item["due"] - timedelta(days=7)),
+                              "exam_prep_by": max(today, item["due"] - timedelta(days=3))})
+    ranked = sorted(active, key=lambda i: (-score(i, tracker), i["id"]))
+    week = None
+    term_start, term_end = tracker.setting_date("term_start"), tracker.setting_date("term_end")
+    if term_start and term_end and term_start <= today <= term_end:
+        week = {"number": (today - term_start).days // 7 + 1, "of": (term_end - term_start).days // 7 + 1}
+    return {"status": "ok", "today": today, "days": days, "week": week, "total_items": len(items),
+            "overdue": [view(i, tracker) for i in overdue], "due_soon": [view(i, tracker) for i in due_soon],
+            "start_now": [view(i, tracker) for i in start_now], "milestones": milestones,
+            "exam_readiness": readiness, "next": view(ranked[0], tracker) if ranked else None,
+            "needs_check": [{"id": i["id"], "label": label(i), "fields": i["needs_check"]}
+                            for i in active if i["needs_check"]]}
+
+
+def render_brief(tracker: Tracker, data: dict, cap: int) -> str:
+    if not data["total_items"]:
+        return '📅 Tracker: no items yet. Say "add deadline ..." or ingest a course outline.'
+    today = data["today"]
+    head = f"📅 Tracker brief · {WEEKDAYS[today.weekday()]} {today.isoformat()}"
+    if data["week"]:
+        head += f" · Week {data['week']['number']} of {data['week']['of']}"
+    lines = [head]
+
+    def section(title: str, rows: list) -> None:
+        if rows:
+            lines.append(f"{title} ({len(rows)}):")
+            lines.extend(f"- {row}" for row in rows[:cap])
+            if len(rows) > cap:
+                lines.append(f"- +{len(rows) - cap} more")
+
+    def raw(item_view: dict) -> dict:
+        return {**dict.fromkeys(("course", "due_time", "weight")), **item_view}
+
+    def when(item: dict) -> str:
+        due = date.fromisoformat(str(item["due"]))
+        return " ".join(filter(None, [WEEKDAYS[due.weekday()], due.isoformat(), item["due_time"]]))
+
+    section("🔥 Overdue", [f"{label(i)} · due {when(i)}{percent(i)}" for i in map(raw, data["overdue"])])
+    section(f"⏰ Due in {data['days']} days",
+            [f"{when(i)} · {str(i['days_left']) + 'd' if i['days_left'] else 'today'} · {label(i)}{percent(i)} · {i['status']}"
+             for i in map(raw, data["due_soon"])])
+    section("🚀 Start now", [f"{label(i)} · start-by {i['start_by']} · due {i['due']}{percent(i)}"
+                            for i in map(raw, data["start_now"])])
+    section("🪜 Milestones", [f"{m['due']} · {m['label']} · {m['text']}" + (" · late" if m["due"] < today.isoformat() else "")
+                             for m in data["milestones"]])
+    rows = []
+    for exam in data["exam_readiness"]:
+        if exam["weak"]:
+            weak = ", ".join(f"{c['name']} ({c['label']})" for c in exam["weak"])
+            rows.append(f"{exam['label']} in {exam['days_left']}d · weak: {weak} · run `review {exam['course']}` by "
+                        f"{exam['review_by']} and `exam-prep {exam['course']}` by {exam['exam_prep_by']}")
+        else:
+            rows.append(f"{exam['label']} in {exam['days_left']}d · no concepts linked yet")
+    section("🧠 Exam readiness", rows)
+    if len(lines) == 1:
+        lines.append(f"✅ Nothing due in the next {data['days']} days.")
+    if data["next"]:
+        lines.append(f"🎯 Next: {label(raw(data['next']))} (score {data['next']['score']})")
+    section("⚠️ Needs checking", [f"{n['label']} · {', '.join(n['fields'])}" for n in data["needs_check"]])
+    return "\n".join(lines)
+
+
+def cmd_brief(tracker: Tracker, args) -> None:
+    days = args.days if args.days is not None else int(tracker.config["brief_days"])
+    data = brief_data(tracker, days, normalise_course(args.course) if args.course else None)
+    if args.json:
+        emit(data)
+    elif data["total_items"] or not args.hook:
+        print(render_brief(tracker, data, args.max))
+
+
+def cmd_hot(tracker: Tracker, args) -> None:
+    path = tracker.root / "wiki" / "hot.md"
+    if not path.exists():
+        emit({"status": "no_hot", "path": "wiki/hot.md"})
+        return
+    data = brief_data(tracker, int(tracker.config["brief_days"]))
+    rows = [f"- {stamp_view(i)} · {label_view(i)} · overdue" for i in data["overdue"]]
+    rows += [f"- {stamp_view(i)} · {label_view(i)} · {i['status']}" for i in data["due_soon"]]
+    if len(rows) > HOT_MAX_LINES:
+        rows = rows[:HOT_MAX_LINES - 1] + [f"- +{len(rows) - HOT_MAX_LINES + 1} more: run `python3 scripts/tracker.py brief`"]
+    section = ["## Upcoming", *(rows or ["(None)"]), ""]
+
+    page = Page(path)
+    before = page.text()
+    start = next((i for i, line in enumerate(page.body) if re.match(r"^##\s+Upcoming\s*$", line)), None)
+    if start is None:
+        start = next((i for i, line in enumerate(page.body) if re.match(r"^##\s+Recent\s*$", line)), len(page.body))
+        page.body[start:start] = section
+    else:
+        end = next((i for i in range(start + 1, len(page.body)) if re.match(r"^#{1,2}\s", page.body[i])), len(page.body))
+        page.body[start:end] = section
+    changed = page.text() != before
+    if changed and not args.dry_run:
+        page.save()
+    emit({"status": "updated" if changed else "unchanged", "path": "wiki/hot.md", "lines": rows})
+
+
+def label_view(item_view: dict) -> str:
+    text = " ".join(filter(None, [item_view.get("course"), item_view["title"]]))
+    return text + (f" · {item_view['weight']}%" if "weight" in item_view else "")
+
+
+def stamp_view(item_view: dict) -> str:
+    return " ".join(filter(None, [str(item_view["due"]), item_view.get("due_time")]))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -643,6 +909,27 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--type", choices=TYPES)
     listing.add_argument("--all", action="store_true", help="include done, graded and dropped items")
     listing.set_defaults(run=cmd_list)
+
+    plan = commands.add_parser("plan", parents=[common, writes], help="regenerate the unticked milestones")
+    plan.add_argument("id")
+    plan.add_argument("--steps", help='step names separated by ";" (default: sized by type and weight)')
+    plan.add_argument("--start-by", help="override the start-by date")
+    plan.set_defaults(run=cmd_plan)
+
+    focus = commands.add_parser("focus", parents=[common], help="next exam or quiz of a course and its concepts")
+    focus.add_argument("course")
+    focus.set_defaults(run=cmd_focus)
+
+    brief = commands.add_parser("brief", parents=[common], help="session briefing")
+    brief.add_argument("--days", type=int, help="look-ahead window (default: brief_days in _config.md, else 14)")
+    brief.add_argument("--max", type=int, default=5, help="rows per section (default: 5)")
+    brief.add_argument("--course")
+    brief.add_argument("--json", action="store_true")
+    brief.add_argument("--hook", action="store_true", help="session hook mode: silent when empty, always exits 0")
+    brief.set_defaults(run=cmd_brief)
+
+    hot = commands.add_parser("hot", parents=[common, writes], help="rewrite the Upcoming section of wiki/hot.md")
+    hot.set_defaults(run=cmd_hot)
     return parser
 
 
@@ -650,6 +937,13 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     args = build_parser().parse_args()
+    if getattr(args, "hook", False):
+        # A session hook must never block the session, whatever state the tracker is in.
+        try:
+            args.run(Tracker(args), args)
+        except BaseException:
+            pass
+        sys.exit(0)
     args.run(Tracker(args), args)
 
 
