@@ -171,6 +171,7 @@ class Sync:
             "backed_up", "seed_created", "seed_kept")}
         self.report["unchanged"] = 0
         self.settings = "unchanged"
+        self.legacy_hook = False
 
     @property
     def backup_dir(self) -> Path:
@@ -253,6 +254,10 @@ class Sync:
         text, self.settings = merge_settings(existing, settings_template(), recorded)
         if text is not None:
             self.write(SETTINGS_PATH, text.encode("utf-8"))
+        # A hook the student edited is left as they left it, which can leave them on a command
+        # from an older release. They get told once, here, where the fix is one line away.
+        final = text if text is not None else (existing or "")
+        self.legacy_hook = hook_matches(final) and HOOK_MARKER not in final
         hook = settings_template()["hooks"]["SessionStart"][0]["hooks"][0]["command"]
         self.files[SETTINGS_PATH] = {"kind": "merged", "hook_command": hook}
 
@@ -274,6 +279,8 @@ class Sync:
     def summary(self) -> dict:
         out = {key: value for key, value in self.report.items() if value}
         out["settings"] = self.settings
+        if self.legacy_hook:
+            out["legacy_hook"] = True
         if self.report["backed_up"]:
             out["backed_up_to"] = self.backup_dir.relative_to(self.root).as_posix()
         return out
@@ -314,6 +321,14 @@ def bullet_list(title: str, items) -> list:
     return [title, *[f"    {item}" for item in items]] if items else []
 
 
+def legacy_hook_lines(result: dict) -> list:
+    if not result.get("legacy_hook"):
+        return []
+    return ["  Your session hook was left as you edited it, and it runs the older tracker brief command,",
+            "  so you miss the starter steps and the update notices. To get them, set that command in",
+            "  .claude/settings.json to: student-wiki start --hook"]
+
+
 def with_notice(lines: list, result: dict) -> str:
     notice = update.notice(result.get("update"))
     return "\n".join(lines + ([""] + notice if notice else []))
@@ -349,7 +364,8 @@ def render_upgrade(result: dict) -> str:
     versions = result["to_version"] if result["from_version"] == result["to_version"] \
         else f"{result['from_version']} -> {result['to_version']}"
     if status == "up_to_date":
-        return with_notice([f"Your vault at {result['root']} is up to date (student-wiki {versions})."], result)
+        head = f"Your vault at {result['root']} is up to date (student-wiki {versions})."
+        return with_notice([head] + legacy_hook_lines(result), result)
     dry = status == "proposed"
     changed = (any(result.get(key) for key in ("created", "updated", "removed"))
                or result.get("settings") in ("created", "updated"))
@@ -359,6 +375,7 @@ def render_upgrade(result: dict) -> str:
         lines += bullet_list(f"  {count(result.get(key, []), 'file')} {verb}:", result.get(key, []))
     if result.get("settings") in ("created", "updated"):
         lines.append("  Session hook in .claude/settings.json refreshed; your other settings were kept.")
+    lines += legacy_hook_lines(result)
     if result.get("backed_up_to"):
         lines.append(f"  Your edited versions {'would be' if dry else 'were'} saved under {result['backed_up_to']}/")
     skipped = result.get("skipped_modified", []) + result.get("orphaned_modified", [])
@@ -497,10 +514,12 @@ def cmd_doctor(args) -> None:
         check("session hook", hooked, "present in .claude/settings.json" if hooked else
               "absent; Claude Code will skip the session briefing. Run: student-wiki upgrade", problem=False)
         if hooked and HOOK_MARKER not in text:
+            # upgrade never overwrites a hook the student edited, not even with --force, so the
+            # only fix is theirs to make.
             check("session hook version", False,
                   "your hook still runs the older tracker brief command, so the starter steps and "
-                  "update notices are missing from it. Set the command in .claude/settings.json to "
-                  "student-wiki start --hook, or run: student-wiki upgrade --force", problem=False)
+                  "update notices are missing from it. Set that command in .claude/settings.json "
+                  "to: student-wiki start --hook", problem=False)
 
         plugins = root / ".obsidian" / "community-plugins.json"
         try:

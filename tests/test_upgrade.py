@@ -108,9 +108,38 @@ class UpgradeTest(VaultCase):
         settings = json.loads(path.read_text(encoding="utf-8"))
         settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = "student-wiki tracker brief --hook"
         path.write_text(json.dumps(settings), encoding="utf-8")
-        self.assertEqual(self.upgrade()["settings"], "unchanged")
+        out = self.upgrade()
+        self.assertEqual(out["settings"], "unchanged")
+        self.assertTrue(out["legacy_hook"])
         kept = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(kept["hooks"]["SessionStart"][0]["hooks"][0]["command"], "student-wiki tracker brief --hook")
+
+    def test_upgrade_says_how_to_fix_a_hook_left_on_the_old_command(self):
+        path = self.vault / ".claude" / "settings.json"
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = "student-wiki tracker brief --hook"
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        out = run_cli("upgrade", "--root", self.vault).stdout
+        self.assertIn("is up to date", out)
+        self.assertIn("student-wiki start --hook", out)
+        # The student makes the edit the line asks for, and it stops.
+        settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = "student-wiki start --hook"
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        self.assertNotIn("older tracker brief", run_cli("upgrade", "--root", self.vault).stdout)
+
+    def test_force_leaves_an_edited_hook_alone(self):
+        # A student edits this hook on purpose (the README tells Windows users to), so --force
+        # overwrites managed files and still stops here.
+        mine = "student-wiki start --hook --root C:/Vault"
+        path = self.vault / ".claude" / "settings.json"
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] = mine
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        self.simulate_older_release(SKILL)
+        self.assertEqual(self.upgrade("--force")["updated"], [SKILL])
+        kept = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(kept["hooks"]["SessionStart"]), 1)
+        self.assertEqual(kept["hooks"]["SessionStart"][0]["hooks"][0]["command"], mine)
 
     def make_legacy_hook(self):
         """The vault as student-wiki 0.1.0 left it: the old hook on disk and in the state file."""
